@@ -1,12 +1,7 @@
-import React from "react";
-import ServiceListe from "../components/Services/ServiceList"; 
+import AllServices from "../components/Services/AllServices";
 
 const Services = () => {
-  return (
-    <div>
-      <ServiceListe />
-    </div>
-  );
+  return <AllServices />;
 };
 
 export default Services;

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
-import starIcon from "../../assets/images/Star.png";
+import { Star } from "lucide-react";
 import DoctorAbout from "./DoctorAbout";
 import Feedback from "./Feedback";
 import SidePanel from "./SidePanel";
@@ -49,7 +49,7 @@ const DoctorDetails = () => {
                     <h3 className="text-2xl font-bold text-gray-900 mt-4">{name || "Dr. John Doe"}</h3>
                     <div className="flex items-center justify-center sm:justify-start gap-2 mt-3">
                       <span className="flex items-center gap-1 text-gray-700 font-semibold text-sm">
-                        <img src={starIcon} alt="Rating" className="w-5 h-5" />
+                        <Star className="w-5 h-5 fill-current" />
                         {averageRating || "N/A"}
                       </span>
                       <span className="text-gray-500 text-sm">({totalRating || 0})</span>

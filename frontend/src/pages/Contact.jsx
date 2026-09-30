@@ -1,81 +1,172 @@
-import React from "react";
+import { BsArrowUpRight, BsEnvelope, BsPhone, BsPinMap } from "react-icons/bs";
 
 const Contact = () => {
   return (
-    <section className="bg-gray-50 min-h-screen py-16">
-      <div className="max-w-7xl mx-auto px-6">
-        <div className="text-center mb-12">
-          <h1 className="text-3xl font-bold text-gray-900">Contact Us</h1>
-          <p className="text-gray-600 mt-4 max-w-2xl mx-auto leading-relaxed text-base">
-            We’d love to hear from you. Get in touch with our team for any inquiries or support.
-          </p>
-        </div>
+    <main>
+      {/* Hero */}
+      <section className="border-b border-line bg-mint pt-24 pb-16 sm:pt-28 sm:pb-20">
+        <div className="container">
+          <div className="max-w-[850px]">
+            <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-primaryColor">
+              Contact Tabibi
+            </p>
 
-        <div className="grid lg:grid-cols-2 gap-12">
-          {/* Contact Info */}
-          <div className="bg-white shadow-lg rounded-2xl p-8">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-6">Get in Touch</h2>
-            <div className="space-y-6">
-              <div className="flex items-center gap-4">
-                <svg className="w-6 h-6 text-[#2563EB]" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
-                  <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
-                </svg>
-                <span className="text-gray-700 text-base">Email: info@healthcare.com</span>
+            <h1 className="mt-4 font-heading text-[48px] font-semibold leading-[1.02] tracking-[-0.02em] text-headingColor sm:text-[64px] lg:text-[76px]">
+              We’re here to help,
+              <br />
+              <em className="font-normal text-coral">
+                whenever you need us.
+              </em>
+            </h1>
+
+            <p className="mt-6 max-w-[600px] text-[17px] leading-7 text-textColor">
+              Have a question about Tabibi, your consultation, or our services?
+              Get in touch with our team and we’ll be happy to help.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Contact Content */}
+      <section className="py-20 sm:py-24">
+        <div className="container">
+          <div className="grid gap-12 lg:grid-cols-12">
+            {/* Contact Information */}
+            <div className="lg:col-span-5">
+              <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-primaryColor">
+                Get in touch
+              </p>
+
+              <h2 className="mt-3 font-heading text-[36px] font-semibold leading-[1.08] text-headingColor sm:text-[46px]">
+                Let’s start
+                <br />
+                a conversation.
+              </h2>
+
+              <p className="mt-5 max-w-[430px] text-[16px] leading-7 text-textColor">
+                Whether you need support or simply want to learn more about
+                Tabibi, you can reach us through any of the channels below.
+              </p>
+
+              <div className="mt-10 space-y-7">
+                {/* Email */}
+                <div className="flex items-start gap-4 border-t border-line pt-5">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line text-primaryColor">
+                    <BsEnvelope size={19} />
+                  </div>
+
+                  <div>
+                    <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-textColor">
+                      Email
+                    </p>
+                    <p className="mt-1 text-[16px] font-medium text-headingColor">
+                      info@healthcare.com
+                    </p>
+                  </div>
+                </div>
+
+                {/* Phone */}
+                <div className="flex items-start gap-4 border-t border-line pt-5">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line text-primaryColor">
+                    <BsPhone size={19} />
+                  </div>
+
+                  <div>
+                    <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-textColor">
+                      Phone
+                    </p>
+                    <p className="mt-1 text-[16px] font-medium text-headingColor">
+                      +1-800-555-1234
+                    </p>
+                  </div>
+                </div>
+
+                {/* Address */}
+                <div className="flex items-start gap-4 border-t border-line pt-5">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line text-primaryColor">
+                    <BsPinMap size={19} />
+                  </div>
+
+                  <div>
+                    <p className="text-[12px] font-semibold uppercase tracking-[0.12em] text-textColor">
+                      Address
+                    </p>
+                    <p className="mt-1 text-[16px] font-medium text-headingColor">
+                      123 Health St, City, Country
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center gap-4">
-                <svg className="w-6 h-6 text-[#2563EB]" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.773-1.548a1 1 0 011.06-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
-                </svg>
-                <span className="text-gray-700 text-base">Phone: +1-800-555-1234</span>
-              </div>
-              <div className="flex items-center gap-4">
-                <svg className="w-6 h-6 text-[#2563EB]" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M10 2a8 8 0 100 16 8 8 0 000-16zm0 14a6 6 0 110-12 6 6 0 010 12zm1-9h-2v5h2V7zm0-2h-2v2h2V5z" />
-                </svg>
-                <span className="text-gray-700 text-base">Address: 123 Health St, City, Country</span>
+            </div>
+
+            {/* Contact Form */}
+            <div className="lg:col-span-7">
+              <div className="rounded-[14px] border border-line bg-mint/50 p-6 sm:p-8 lg:p-10">
+                <div className="border-b border-line pb-5">
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-primaryColor">
+                    Send us a message
+                  </p>
+
+                  <h2 className="mt-2 font-heading text-[30px] font-semibold text-headingColor sm:text-[36px]">
+                    How can we help?
+                  </h2>
+                </div>
+
+                <div className="mt-7 space-y-6">
+                  {/* Full Name */}
+                  <div>
+                    <label className="mb-2 block text-[13px] font-semibold uppercase tracking-[0.08em] text-headingColor">
+                      Full name
+                    </label>
+
+                    <input
+                      type="text"
+                      placeholder="Your name"
+                      className="w-full border-b border-line bg-transparent px-0 py-3 text-[16px] text-headingColor placeholder:text-textColor/60 focus:border-primaryColor focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Email */}
+                  <div>
+                    <label className="mb-2 block text-[13px] font-semibold uppercase tracking-[0.08em] text-headingColor">
+                      Email
+                    </label>
+
+                    <input
+                      type="email"
+                      placeholder="your@email.com"
+                      className="w-full border-b border-line bg-transparent px-0 py-3 text-[16px] text-headingColor placeholder:text-textColor/60 focus:border-primaryColor focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Message */}
+                  <div>
+                    <label className="mb-2 block text-[13px] font-semibold uppercase tracking-[0.08em] text-headingColor">
+                      Message
+                    </label>
+
+                    <textarea
+                      rows="5"
+                      placeholder="Tell us how we can help..."
+                      className="w-full resize-none border-b border-line bg-transparent px-0 py-3 text-[16px] leading-7 text-headingColor placeholder:text-textColor/60 focus:border-primaryColor focus:outline-none"
+                    ></textarea>
+                  </div>
+
+                  {/* Submit */}
+                  <button
+                    type="button"
+                    className="group flex w-full items-center justify-center gap-3 bg-primaryColor px-6 py-4 text-[13px] font-semibold uppercase tracking-[0.08em] text-white transition-colors duration-300 hover:bg-ink"
+                  >
+                    Send message
+                    <BsArrowUpRight className="transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-
-          {/* Contact Form */}
-          <div className="bg-white shadow-lg rounded-2xl p-8">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-6">Send Us a Message</h2>
-            <div className="space-y-6">
-              <div>
-                <label className="block text-lg font-semibold text-gray-900 mb-2">Full Name</label>
-                <input
-                  type="text"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
-                  placeholder="Your Name"
-                />
-              </div>
-              <div>
-                <label className="block text-lg font-semibold text-gray-900 mb-2">Email</label>
-                <input
-                  type="email"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
-                  placeholder="your@email.com"
-                />
-              </div>
-              <div>
-                <label className="block text-lg font-semibold text-gray-900 mb-2">Message</label>
-                <textarea
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#2563EB]"
-                  rows="5"
-                  placeholder="Your message here..."
-                ></textarea>
-              </div>
-              <button
-                className="bg-[#2563EB] text-white py-3 px-6 rounded-lg hover:bg-[#1E4FC2] transition-all duration-200 w-full"
-              >
-                Send Message
-              </button>
-            </div>
-          </div>
         </div>
-      </div>
-    </section>
+      </section>
+    </main>
   );
 };
 

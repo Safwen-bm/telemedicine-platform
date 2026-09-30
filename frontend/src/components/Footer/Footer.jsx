@@ -1,163 +1,111 @@
-import React from "react";
 import { Link } from "react-router-dom";
-import { RiLinkedinFill } from "react-icons/ri";
-import {
-  AiFillYoutube,
-  AiFillGithub,
-  AiOutlineInstagram,
-} from "react-icons/ai";
+
+const columns = [
+  {
+    title: "Patients",
+    links: [
+      { to: "/doctors", label: "Find a doctor" },
+      { to: "/services", label: "Services" },
+      { to: "/register", label: "Create an account" },
+      { to: "/login", label: "Sign in" },
+    ],
+  },
+  {
+    title: "Doctors",
+    links: [
+      { to: "/register", label: "Join the network" },
+      { to: "/login", label: "Doctor login" },
+    ],
+  },
+  {
+    title: "Help",
+    links: [{ to: "/contact", label: "Contact us" }],
+  },
+];
 
 const Footer = () => {
   return (
-    <footer className="bg-white py-8 border-t border-blue-500">
-      <div className="container mx-auto px-4">
-        <div className="flex flex-col md:flex-row justify-between items-center gap-8">
-          {/* Logo and Tagline */}
-          <div className="text-center md:text-left">
-            <div className="flex items-center gap-2 mb-4">
-              <img src="/logo.png" alt="logo" />
+    <footer className="bg-ink text-paper">
+      <div className="container pt-16 pb-4">
+        <div className="grid gap-12 lg:grid-cols-12">
+          <div className="lg:col-span-6">
+            <p className="font-heading text-[44px] font-semibold leading-none tracking-[-0.02em] sm:text-[64px]">
+              Tabibi
+              <span className="text-coral">.</span>
+            </p>
 
-              <span className="text-blue-600 font-semibold text-lg">
-                on demand
-              </span>
-            </div>
-            <p className="text-gray-600 text-sm mb-4">by Included Health</p>
+            <p className="mt-5 max-w-sm text-[16px] leading-7 text-paper/70">
+              Online consultations with licensed doctors, and a medical folder
+              that stays with you.
+            </p>
           </div>
 
-          {/* Navigation Columns */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 w-full md:w-auto">
-            {/* About Us */}
-            <div className="text-center md:text-left">
-              <h3 className="text-blue-600 font-bold text-lg mb-4">About Us</h3>
-              <ul className="space-y-2">
-                <li>
-                  <Link
-                    to="/about"
-                    className="text-gray-600 hover:text-blue-600 text-sm"
-                  >
-                    Our Providers
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to="/cost-insurance"
-                    className="text-gray-600 hover:text-blue-600 text-sm"
-                  >
-                    Cost – Insurance
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to="/careers"
-                    className="text-gray-600 hover:text-blue-600 text-sm"
-                  >
-                    Careers
-                  </Link>
-                </li>
-              </ul>
-            </div>
+          <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 lg:col-span-6">
+            {columns.map((col) => (
+              <div key={col.title}>
+                <h3 className="font-sans text-[12px] font-semibold uppercase tracking-[0.16em] text-yellowColor">
+                  {col.title}
+                </h3>
 
-            {/* How It Works */}
-            <div className="text-center md:text-left">
-              <h3 className="text-blue-600 font-bold text-lg mb-4">
-                How It Works
-              </h3>
-              <ul className="space-y-2">
-                <li>
-                  <Link
-                    to="/medicare"
-                    className="text-gray-600 hover:text-blue-600 text-sm"
-                  >
-                    Medicare
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to="/organization-solutions"
-                    className="text-gray-600 hover:text-blue-600 text-sm"
-                  >
-                    Solutions for Your Organization
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            {/* Contact Us */}
-            <div className="text-center md:text-left">
-              <h3 className="text-blue-600 font-bold text-lg mb-4">
-                Contact Us
-              </h3>
-              <ul className="space-y-2">
-                <li>
-                  <Link
-                    to="/faqs"
-                    className="text-gray-600 hover:text-blue-600 text-sm"
-                  >
-                    FAQs
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    to="/blog"
-                    className="text-gray-600 hover:text-blue-600 text-sm"
-                  >
-                    Blog
-                  </Link>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          {/* Social Icons */}
-          <div className="text-center md:text-right">
-            <div className="flex justify-center md:justify-end gap-4">
-              <Link
-                to=""
-                className="text-blue-600 hover:text-blue-700 transition-colors"
-              >
-                <RiLinkedinFill className="w-5 h-5" />
-              </Link>
-              <Link
-                to=""
-                className="text-blue-600 hover:text-blue-700 transition-colors"
-              >
-                <AiFillYoutube className="w-5 h-5" />
-              </Link>
-              <Link
-                to=""
-                className="text-blue-600 hover:text-blue-700 transition-colors"
-              >
-                <AiOutlineInstagram className="w-5 h-5" />
-              </Link>
-            </div>
+                <ul className="mt-5 space-y-3">
+                  {col.links.map((l) => (
+                    <li key={l.label}>
+                      <Link
+                        to={l.to}
+                        className="text-[15px] text-paper/80 transition-colors hover:text-coral"
+                      >
+                        {l.label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Copyright and Legal Links */}
-        <div className="mt-8 text-center border-t border-gray-200 pt-4">
-          <p className="text-gray-600 text-sm mb-2">
-            © 2025 Doctor On Demand by Included Health, Inc. All rights
-            reserved.
-          </p>
-          <div className="flex flex-col md:flex-row justify-center gap-4 text-sm text-gray-600">
-            <Link to="/terms" className="hover:text-blue-600">
-              Terms of Service
-            </Link>
-            <Link to="/privacy" className="hover:text-blue-600">
-              Privacy Policy
-            </Link>
-            <Link to="/notice-privacy" className="hover:text-blue-600">
-              Notice of Privacy Practices
-            </Link>
-            <Link to="/nondiscrimination" className="hover:text-blue-600">
-              Notice of Nondiscrimination
-            </Link>
-            <Link to="/accessibility" className="hover:text-blue-600">
-              Accessibility
-            </Link>
-            <Link to="/sitemap" className="hover:text-blue-600">
-              Sitemap
-            </Link>
+        {/* Emergency notice */}
+        <p className="mt-14 text-center text-[12px] text-paper/50">
+          Not for emergencies. If you think you are having a medical emergency,
+          contact your local emergency services.
+        </p>
+
+        {/* Bottom links */}
+        <div className="mt-4 border-t border-paper/15 pt-6 text-[13px] text-paper/60">
+          <div className="flex flex-col gap-4 md:grid md:grid-cols-3 md:items-center">
+            {/* Copyright */}
+            <p className="text-center md:text-left">
+              © {new Date().getFullYear()} Tabibi. All rights reserved.
+            </p>
+
+            {/* Built by */}
+            <p className="text-center">
+              Built by{" "}
+              <span className="font-semibold text-paper/80">
+                Safwen Ben Mabrouk
+              </span>
+            </p>
+
+            {/* Social links */}
+            <div className="flex items-center justify-center gap-5 md:justify-end">
+              <a
+                href="https://linkedin.com/in/safwen-ben-mabrouk"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="transition-colors hover:text-coral"
+              >
+                LinkedIn
+              </a>
+
+              <a
+                href="https://github.com/Safwen-bm"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="transition-colors hover:text-coral"
+              >
+                GitHub
+              </a>
+            </div>
           </div>
         </div>
       </div>

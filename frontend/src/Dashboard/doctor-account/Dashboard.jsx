@@ -4,7 +4,7 @@ import Error from "../../components/Error/Error";
 import useGetProfile from "../../hooks/useFetchData";
 import { BASE_URL } from "../../config";
 import Tabs from "./Tabs";
-import starIcon from "../../assets/images/Star.png";
+import { Star } from "lucide-react";
 import DoctorAbout from "./../../pages/Doctors/DoctorAbout";
 import Profile from "./Profile";
 import Appointments from "./Appointments";
@@ -44,7 +44,7 @@ const Dashboard = () => {
                     <h1 className="text-3xl font-bold text-gray-900 mt-4">{data.name || "Dr. John Doe"}</h1>
                     <div className="flex items-center justify-center lg:justify-start gap-2 mt-3">
                       <span className="flex items-center gap-1 text-gray-700 font-semibold text-sm">
-                        <img src={starIcon} alt="Rating" className="w-5 h-5" />
+                        <Star className="w-5 h-5 fill-current" />
                         {data.averageRating || "N/A"}
                       </span>
                       <span className="text-gray-500 text-sm">({data.totalRating || 0})</span>

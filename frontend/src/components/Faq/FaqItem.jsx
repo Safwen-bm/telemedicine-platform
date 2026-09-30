@@ -5,35 +5,37 @@ const FaqItem = ({ item }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div
-      onClick={() => setIsOpen(!isOpen)}
-      className="group bg-white border border-gray-200 rounded-xl p-5 mb-6 shadow-sm hover:shadow-md transition-shadow duration-300 cursor-pointer"
-    >
-      <div className="flex items-start justify-between gap-4">
-        <h4 className="text-lg lg:text-xl font-semibold text-gray-900 leading-snug">
+    <li className="border-b border-line">
+      <button
+        type="button"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((o) => !o)}
+        className="flex w-full items-start justify-between gap-6 py-6 text-left"
+      >
+        <span className="font-heading text-[22px] font-semibold leading-snug text-headingColor">
           {item.question}
-        </h4>
-        <div
-          className={`w-8 h-8 min-w-[2rem] min-h-[2rem] flex items-center justify-center rounded-full border transition-all duration-300 ${
+        </span>
+        <span
+          className={`mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-colors ${
             isOpen
-              ? "bg-blue-600 text-white border-blue-600"
-              : "bg-gray-100 text-blue-600 border-gray-300"
+              ? "border-coral bg-coral text-white"
+              : "border-line text-primaryColor"
           }`}
         >
           {isOpen ? <AiOutlineMinus /> : <AiOutlinePlus />}
-        </div>
-      </div>
+        </span>
+      </button>
 
       <div
-        className={`overflow-hidden transition-all duration-300 ease-in-out ${
-          isOpen ? "mt-4 max-h-[1000px]" : "max-h-0"
+        className={`grid transition-all duration-300 ease-in-out ${
+          isOpen ? "grid-rows-[1fr] pb-6" : "grid-rows-[0fr]"
         }`}
       >
-        <p className="text-gray-600 text-base leading-relaxed">
+        <p className="overflow-hidden text-[16px] leading-7 text-textColor">
           {item.content}
         </p>
       </div>
-    </div>
+    </li>
   );
 };
 

@@ -1,14 +1,13 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
+import { BsArrowUpRight, BsCamera } from "react-icons/bs";
 import HashLoader from "react-spinners/HashLoader";
 
 import uploadImageToCloudinary from "../utils/uploadCloudinary.js";
 import { BASE_URL } from "../config.js";
 
 const Signup = () => {
-
-  const [selectedFile, setSelectedFile] = useState(null);
   const [previewURL, setPreviewURL] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -17,40 +16,43 @@ const Signup = () => {
     email: "",
     password: "",
     gender: "male",
-    //country: "",
-    //dateOfBirth: "",
     photo: "",
     role: "patient",
   });
 
   const navigate = useNavigate();
 
-  const handleInputChange = e => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleInputChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    });
   };
 
   const handleFileInputChange = async (event) => {
-  const file = event.target.files[0];
-  if (!file) return;
+    const file = event.target.files[0];
 
-  setLoading(true);
-  try {
-    const data = await uploadImageToCloudinary(file); // returns { url: "..." }
+    if (!file) return;
 
-    setPreviewURL(data.url);
+    setLoading(true);
 
-    // ✅ store ONLY the URL in formData.photo (string)
-    setFormData((prev) => ({ ...prev, photo: data.url }));
-  } catch (err) {
-    toast.error("Image upload failed");
-  } finally {
-    setLoading(false);
-  }
-};
+    try {
+      const data = await uploadImageToCloudinary(file);
 
+      setPreviewURL(data.url);
 
-  const submitHandler = async event => {
+      setFormData((prev) => ({
+        ...prev,
+        photo: data.url,
+      }));
+    } catch (err) {
+      toast.error("Image upload failed");
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  const submitHandler = async (event) => {
     event.preventDefault();
     setLoading(true);
 
@@ -61,7 +63,7 @@ const Signup = () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(formData),
-      })
+      });
 
       const { message } = await res.json();
 
@@ -72,7 +74,6 @@ const Signup = () => {
       setLoading(false);
       toast.success(message);
       navigate("/login");
-
     } catch (err) {
       toast.error(err.message);
       setLoading(false);
@@ -80,179 +81,232 @@ const Signup = () => {
   };
 
   return (
-    <section className="px-4 sm:px-6 md:px-8 lg:px-0 py-12 bg-white">
-      <div className="max-w-[1170px] mx-auto">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Image Box */}
-          <div className="hidden lg:flex justify-center rounded-l-lg">
-            <figure className="rounded-l-lg overflow-hidden w-full">
+    <main>
+      <section className="min-h-screen bg-mint px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+        <div className="mx-auto max-w-[1180px]">
+          <div className="grid overflow-hidden rounded-[16px] border border-line bg-paper lg:grid-cols-2">
+            {/* Image */}
+            <div className="relative hidden min-h-[720px] overflow-hidden lg:block">
               <img
-                src="/signup-img.png"
-                alt="Signup illustration"
-                className="w-full h-auto object-contain"
+                src="/signup-img.jpg"
+                alt="Create your Tabibi account"
+                className="h-full w-full object-contain"
               />
-            </figure>
-          </div>
 
-          {/* Signup Form */}
-          <div className="flex justify-center items-center rounded-l-lg py-10 bg-white shadow-md">
-            <div className="w-full max-w-[400px]">
-              <h3 className="text-headingColor text-[22px] font-heading sm:text-2xl md:text-[22px] leading-9 font-bold mb-6 sm:mb-8 text-center">
-                Create an <span className="text-primaryColor font-bold">account</span>
-              </h3>
+              <div className="absolute inset-0 bg-gradient-to-t from-ink/80 via-ink/20 to-transparent" />
 
-              <form onSubmit={submitHandler} className="space-y-4">
-                <div>
-                  <input
-                    type="text"
-                    placeholder="Enter Your Full Name"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    className="w-full py-3 border-b border-solid border-[#0066ff61] focus:outline-none focus:border-b-primaryColor text-base leading-7 text-headingColor placeholder:text-textColor cursor-pointer"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <input
-                    type="email"
-                    placeholder="Enter Your Email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    className="w-full py-3 border-b border-solid border-[#0066ff61] focus:outline-none focus:border-b-primaryColor text-base leading-7 text-headingColor placeholder:text-textColor cursor-pointer"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <input
-                    type="password"
-                    placeholder="Password"
-                    name="password"
-                    value={formData.password}
-                    onChange={handleInputChange}
-                    className="w-full py-3 border-b border-solid border-[#0066ff61] focus:outline-none focus:border-b-primaryColor text-base leading-7 text-headingColor placeholder:text-textColor cursor-pointer"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="text-gray-900 text-base font-medium mb-2 block">Role</label>
-                  <select
-                    name="role"
-                    value={formData.role}
-                    onChange={handleInputChange}
-                    className="w-full py-3 border-b border-solid border-[#0066ff61] focus:outline-none focus:border-b-primaryColor text-base leading-7 text-headingColor placeholder:text-textColor cursor-pointer"
-                    required
-                  >
-                    <option value="patient">Patient</option>
-                    <option value="doctor">Doctor</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-gray-900 text-base font-medium mb-2 block">Gender</label>
-                  <select
-                    name="gender"
-                    value={formData.gender}
-                    onChange={handleInputChange}
-                    className="w-full py-3 border-b border-solid border-[#0066ff61] focus:outline-none focus:border-b-primaryColor text-base leading-7 text-headingColor placeholder:text-textColor cursor-pointer"
-                    required
-                  >
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                  </select>
-                </div>
-                { /* 
-                <div>
-                  <label className="text-gray-900 text-base font-medium mb-2 block">Country</label>
-                  <input
-                    type="text"
-                    placeholder="Enter Your Country"
-                    name="country"
-                    value={formData.country}
-                    onChange={handleInputChange}
-                    className="w-full py-3 border-b border-solid border-[#0066ff61] focus:outline-none focus:border-b-primaryColor text-base leading-7 text-headingColor placeholder:text-textColor cursor-pointer"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="text-gray-900 text-base font-medium mb-2 block">Date of Birth</label>
-                  <input
-                    type="date"
-                    name="dateOfBirth"
-                    value={formData.dateOfBirth}
-                    onChange={handleInputChange}
-                    className="w-full py-3 border-b border-solid border-[#0066ff61] focus:outline-none focus:border-b-primaryColor text-base leading-7 text-headingColor placeholder:text-textColor cursor-pointer"
-                    required
-                  />
-                </div>
-                */}
-
-                <div className="mb-5 flex items-center gap-3">
-                  {selectedFile ? (
-                    <figure className="w-[60px] h-[60px] rounded-full border-2 border-solid border-primaryColor flex items-center justify-center">
-                      {previewURL ? (
-                        <img
-                          src={previewURL}
-                          alt="Profile preview"
-                          className="w-full h-full object-cover rounded-full transition-opacity duration-300"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center animate-pulse bg-gray-200 rounded-full">
-                          <span className="text-gray-500 text-sm">Loading...</span>
-                        </div>
-                      )}
-                    </figure>
-                  ) : null}
-
-                  <div>
-                    <input
-                      type="file"
-                      name="photo"
-                      id="customFile"
-                      accept=".jpg, .png"
-                      onChange={handleFileInputChange}
-                      className="hidden"
-                    />
-                    <label
-                      htmlFor="customFile"
-                      className="text-primaryColor font-medium cursor-pointer bg-blue-100 py-2 px-4 rounded-full hover:bg-blue-200 transition-colors"
-                    >
-                      Upload Photo
-                    </label>
-                  </div>
-                </div>
-
-                <div className="mt-6">
-                  <button
-                    disabled={loading && true}
-                    type="submit"
-                    className="w-full bg-primaryColor text-white text-base sm:text-lg md:text-[18px] leading-7 rounded-lg px-4 py-3 hover:bg-blue-700 transition-colors"
-                  >
-                    {loading ? (
-                      <HashLoader size={35} color="#ffffff" />
-                    ) : (
-                      "Sign Up"
-                    )}
-                  </button>
-                </div>
-
-                <p className="mt-5 text-textColor text-center text-sm sm:text-base">
-                  Already have an account?{" "}
-                  <Link to="/login" className="text-primaryColor font-medium">
-                    Login
-                  </Link>
+              <div className="absolute bottom-10 left-10 right-10">
+                <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-white/80">
+                  Welcome to Tabibi
                 </p>
-              </form>
+
+                <h2 className="mt-3 max-w-[480px] font-heading text-[42px] font-semibold leading-[1.05] text-white">
+                  Your health,
+                  <br />
+                  <em className="font-normal text-coral">
+                    in good hands.
+                  </em>
+                </h2>
+
+                <p className="mt-5 max-w-[420px] text-[15px] leading-7 text-white/80">
+                  Create your account and connect with doctors for simple,
+                  convenient online consultations.
+                </p>
+              </div>
+            </div>
+
+            {/* Form */}
+            <div className="flex items-center px-6 py-10 sm:px-10 sm:py-12 lg:px-12 lg:py-14">
+              <div className="w-full max-w-[460px]">
+                <div className="mb-8">
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-primaryColor">
+                    Get started
+                  </p>
+
+                  <h1 className="mt-3 font-heading text-[38px] font-semibold leading-[1.05] text-headingColor sm:text-[46px]">
+                    Create your
+                    <br />
+                    <em className="font-normal text-coral">
+                      account.
+                    </em>
+                  </h1>
+
+                  <p className="mt-4 text-[15px] leading-7 text-textColor">
+                    Join Tabibi and make your next healthcare consultation
+                    easier.
+                  </p>
+                </div>
+
+                <form onSubmit={submitHandler} className="space-y-5">
+                  {/* Full Name */}
+                  <div>
+                    <label className="mb-2 block text-[12px] font-semibold uppercase tracking-[0.08em] text-headingColor">
+                      Full name
+                    </label>
+
+                    <input
+                      type="text"
+                      placeholder="Your full name"
+                      name="name"
+                      value={formData.name}
+                      onChange={handleInputChange}
+                      className="w-full border-b border-line bg-transparent px-0 py-3 text-[16px] leading-7 text-headingColor placeholder:text-textColor/60 focus:border-primaryColor focus:outline-none"
+                      required
+                    />
+                  </div>
+
+                  {/* Email */}
+                  <div>
+                    <label className="mb-2 block text-[12px] font-semibold uppercase tracking-[0.08em] text-headingColor">
+                      Email
+                    </label>
+
+                    <input
+                      type="email"
+                      placeholder="your@email.com"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleInputChange}
+                      className="w-full border-b border-line bg-transparent px-0 py-3 text-[16px] leading-7 text-headingColor placeholder:text-textColor/60 focus:border-primaryColor focus:outline-none"
+                      required
+                    />
+                  </div>
+
+                  {/* Password */}
+                  <div>
+                    <label className="mb-2 block text-[12px] font-semibold uppercase tracking-[0.08em] text-headingColor">
+                      Password
+                    </label>
+
+                    <input
+                      type="password"
+                      placeholder="Create a password"
+                      name="password"
+                      value={formData.password}
+                      onChange={handleInputChange}
+                      className="w-full border-b border-line bg-transparent px-0 py-3 text-[16px] leading-7 text-headingColor placeholder:text-textColor/60 focus:border-primaryColor focus:outline-none"
+                      required
+                    />
+                  </div>
+
+                  {/* Role + Gender */}
+                  <div className="grid gap-5 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-[12px] font-semibold uppercase tracking-[0.08em] text-headingColor">
+                        Role
+                      </label>
+
+                      <select
+                        name="role"
+                        value={formData.role}
+                        onChange={handleInputChange}
+                        className="w-full border-b border-line bg-transparent py-3 text-[16px] leading-7 text-headingColor focus:border-primaryColor focus:outline-none"
+                        required
+                      >
+                        <option value="patient">Patient</option>
+                        <option value="doctor">Doctor</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-[12px] font-semibold uppercase tracking-[0.08em] text-headingColor">
+                        Gender
+                      </label>
+
+                      <select
+                        name="gender"
+                        value={formData.gender}
+                        onChange={handleInputChange}
+                        className="w-full border-b border-line bg-transparent py-3 text-[16px] leading-7 text-headingColor focus:border-primaryColor focus:outline-none"
+                        required
+                      >
+                        <option value="male">Male</option>
+                        <option value="female">Female</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Profile Photo */}
+                  <div className="pt-2">
+                    <label className="mb-3 block text-[12px] font-semibold uppercase tracking-[0.08em] text-headingColor">
+                      Profile photo
+                    </label>
+
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-line bg-mint">
+                        {previewURL ? (
+                          <img
+                            src={previewURL}
+                            alt="Profile preview"
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <BsCamera
+                            size={21}
+                            className="text-primaryColor"
+                          />
+                        )}
+                      </div>
+
+                      <div>
+                        <input
+                          type="file"
+                          name="photo"
+                          id="customFile"
+                          accept=".jpg, .jpeg, .png"
+                          onChange={handleFileInputChange}
+                          className="hidden"
+                        />
+
+                        <label
+                          htmlFor="customFile"
+                          className="inline-flex cursor-pointer items-center gap-2 border border-line bg-white px-4 py-2.5 text-[13px] font-semibold uppercase tracking-[0.06em] text-headingColor transition-colors hover:border-primaryColor hover:text-primaryColor"
+                        >
+                          {previewURL ? "Change photo" : "Upload photo"}
+                        </label>
+
+                        <p className="mt-2 text-[12px] text-textColor">
+                          JPG, JPEG or PNG
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Submit */}
+                  <div className="pt-3">
+                    <button
+                      disabled={loading}
+                      type="submit"
+                      className="group flex w-full items-center justify-center gap-3 bg-primaryColor px-6 py-4 text-[13px] font-semibold uppercase tracking-[0.08em] text-white transition-colors duration-300 hover:bg-ink disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      {loading ? (
+                        <HashLoader size={22} color="#ffffff" />
+                      ) : (
+                        <>
+                          Create account
+                          <BsArrowUpRight className="transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Login */}
+                  <p className="pt-2 text-center text-[14px] text-textColor">
+                    Already have an account?{" "}
+                    <Link
+                      to="/login"
+                      className="font-semibold text-primaryColor transition-colors hover:text-coral"
+                    >
+                      Sign in
+                    </Link>
+                  </p>
+                </form>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </section>
+      </section>
+    </main>
   );
 };
 

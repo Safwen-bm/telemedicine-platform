@@ -1,6 +1,6 @@
 import { Routes, Route } from "react-router-dom";
-import Layout from "../layout/Layout"; // Main app layout with 
-import AdminLayout from "../layout/AdminLayout"; // Admin layout without 
+import Layout from "../layout/Layout"; 
+import AdminLayout from "../layout/AdminLayout"; 
 import Home from "../pages/Home";
 import Services from "../pages/Services";
 import Contact from "../pages/Contact";
@@ -18,7 +18,6 @@ import Bookings from "../Dashboard/Admin/Bookings";
 import AdminLogin from "../Dashboard/Admin/AdminLogin";
 import AdminDoctors from "../Dashboard/Admin/AdminDoctors";
 import ConsultationRoom from "../pages/Consultation/ConsultationRoom";
-import MedicalFolder from "../Dashboard/user-account/MedicalFolder";
 import PatientMedicalFolder from "../Dashboard/doctor-account/PatientMedicalFolder";
 import AdminAnalytics from "../Dashboard/Admin/AdminAnalytics";
 

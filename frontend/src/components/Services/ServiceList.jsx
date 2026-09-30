@@ -1,128 +1,88 @@
 import { useState } from "react";
-import {
-  FaUserMd,
-  FaHeartbeat,
-  FaStethoscope,
-  FaBrain,
-  FaTooth,
-  FaUserNurse,
-  FaBone,
-  FaLungs,
-  FaAllergies,
-  FaCapsules,
-  FaVideo,
-  FaMicrophone,
-  FaVolumeUp,
-  FaPhoneSlash
-} from "react-icons/fa";
 import { Link } from "react-router-dom";
+import { BsArrowUpRight } from "react-icons/bs";
+import { serviceLists, serviceTabs } from "./ServiceData";
 
-const symptoms = [
-  { name: "Stomach Ache", icon: <FaHeartbeat /> },
-  { name: "Period Issue", icon: <FaUserNurse /> },
-  { name: "Acne / Pimples", icon: <FaAllergies /> },
-  { name: "Fever", icon: <FaCapsules /> },
-  { name: "Depression", icon: <FaBrain /> },
-  { name: "Diabetes", icon: <FaCapsules /> },
-  { name: "Cough", icon: <FaLungs /> },
-  { name: "Hairfall", icon: <FaAllergies /> },
-  { name: "Gastritis", icon: <FaHeartbeat /> },
-  { name: "Body Pain", icon: <FaBone /> },
-];
-
-const specialties = [
-  { name: "Physician", icon: <FaUserMd /> },
-  { name: "Sexologist", icon: <FaUserMd /> },
-  { name: "Dermatologist", icon: <FaAllergies /> },
-  { name: "Orthopedician", icon: <FaBone /> },
-  { name: "ENT Specialist", icon: <FaStethoscope /> },
-  { name: "Psychotherapist", icon: <FaBrain /> },
-  { name: "Dentist", icon: <FaTooth /> },
-  { name: "Cardiologist", icon: <FaHeartbeat /> },
-  { name: "Gynaecologist", icon: <FaUserNurse /> },
-  { name: "Dietitian", icon: <FaCapsules /> },
-];
-
-export default function OnlineDoctorConsultation() {
+const ServiceList = () => {
   const [tab, setTab] = useState("symptoms");
 
   return (
-    <div className="p-10 pt-20 bg-blue-100 rounded-lg shadow-lg mx-auto">
-      {/* Background Image Section */}
-      <div
-        className="relative bg-cover bg-center bg-no-repeat rounded-lg shadow-lg p-16 min-h-[500px] flex flex-col justify-center items-center"
-        style={{ backgroundImage: "url('/doctor-video-call.png')" }}
-      >
-        {/* Overlay for better readability */}
-        <div className="absolute inset-0 bg-black opacity-30 rounded-lg"></div>
+    <section className="py-24">
+      <div className="container">
+        <div className="grid gap-10 lg:grid-cols-12">
+          {/* Left content */}
+          <div className="lg:col-span-5">
+            <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-primaryColor">
+              What can we help with
+            </p>
 
-        {/* Floating Call Controls */}
-        <div className="absolute top-5 right-5 flex gap-3 z-20">
-          <button className="p-3 bg-white rounded-full shadow-lg hover:bg-gray-200 transition">
-            <FaVideo className="text-blue-600 text-2xl" />
-          </button>
-          <button className="p-3 bg-white rounded-full shadow-lg hover:bg-gray-200 transition">
-            <FaMicrophone className="text-blue-600 text-2xl" />
-          </button>
-          <button className="p-3 bg-white rounded-full shadow-lg hover:bg-gray-200 transition">
-            <FaVolumeUp className="text-blue-600 text-2xl" />
-          </button>
-          <button className="p-3 bg-red-500 rounded-full shadow-lg hover:bg-red-700 transition">
-            <FaPhoneSlash className="text-white text-2xl" />
-          </button>
-        </div>
+            <h2 className="mt-3 font-heading text-[38px] font-semibold leading-[1.05] sm:text-[52px]">
+              What brings you in{" "}
+              <em className="font-normal text-coral">today?</em>
+            </h2>
 
-        {/* Text Content */}
-        <div className="relative z-10 text-center text-white">
-          <h2 className="text-5xl font-bold mb-5">Consult World's Top Doctors Online</h2>
-          <div className="flex flex-wrap justify-center gap-6 text-lg">
-            <div>✔ 35+ Specialties</div>
-            <div>✔ 10L+ Satisfied Users</div>
-            <div>✔ Consult online in 10 mins</div>
-            <div>✔ Free follow-up for 5 days</div>
+            <p className="mt-5 max-w-md text-[17px] leading-7 text-textColor">
+              Start from how you feel, or go straight to the specialty you
+              need.
+            </p>
+
+            {/* Tabs */}
+            <div
+              className="mt-8 flex gap-6 border-b border-line"
+              role="tablist"
+            >
+              {serviceTabs.map((tabItem) => (
+                <button
+                  key={tabItem.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === tabItem.key}
+                  onClick={() => setTab(tabItem.key)}
+                  className={`-mb-px border-b-2 pb-3 text-[15px] font-semibold transition-colors ${
+                    tab === tabItem.key
+                      ? "border-coral text-headingColor"
+                      : "border-transparent text-textColor hover:text-primaryColor"
+                  }`}
+                >
+                  {tabItem.label}
+                </button>
+              ))}
+            </div>
           </div>
+
+          {/* Service list */}
+          <ul className="grid gap-x-12 lg:col-span-7 md:grid-cols-2">
+            {serviceLists[tab].map(({ name, icon: Icon }, i) => (
+              <li key={name}>
+                <Link
+                  to="/doctors"
+                  className="group flex items-center gap-3 border-b border-line py-4"
+                >
+                  {/* Number */}
+                  <span className="w-6 shrink-0 font-heading text-[13px] text-coral">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+
+                  {/* Icon */}
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line text-headingColor transition-all duration-300 group-hover:border-coral group-hover:text-coral">
+                    <Icon size={22} strokeWidth={1.6} />
+                  </span>
+
+                  {/* Name */}
+                  <span className="flex-1 font-heading text-[20px] font-semibold leading-tight text-headingColor transition-colors group-hover:text-primaryColor">
+                    {name}
+                  </span>
+
+                  {/* Arrow */}
+                  <BsArrowUpRight className="text-textColor transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-coral" />
+                </Link>
+              </li>
+            ))}
+          </ul>
         </div>
       </div>
-
-      {/* Tab Section */}
-      <div className="flex justify-center mt-8">
-        <button
-          className={`mr-3 px-6 py-3 rounded-lg text-lg font-semibold transition ${
-            tab === "symptoms" ? "bg-blue-600 text-white" : "bg-white text-blue-600 border border-blue-600"
-          }`}
-          onClick={() => setTab("symptoms")}
-        >
-          Symptoms
-        </button>
-        <button
-          className={`px-6 py-3 rounded-lg text-lg font-semibold transition ${
-            tab === "specialties" ? "bg-blue-600 text-white" : "bg-white text-blue-600 border border-blue-600"
-          }`}
-          onClick={() => setTab("specialties")}
-        >
-          Specialties
-        </button>
-      </div>
-
-      {/* Grid Content */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-lg mt-6">
-        {(tab === "symptoms" ? symptoms : specialties).map((item, index) => (
-          <div
-            key={index}
-            className="p-6 text-center bg-white shadow-lg rounded-xl flex flex-col items-center justify-center cursor-pointer hover:bg-blue-200 transition duration-300"
-          >
-            <div className="text-4xl text-blue-500 mb-3">{item.icon}</div>
-            <div className="font-semibold">{item.name}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* View All Button */}
-      <div className="flex justify-center mt-8">
-        <button className="bg-blue-600 text-white px-6 py-3 rounded-lg text-lg hover:bg-blue-700 transition duration-300">
-        <Link to="/services">View all</Link>
-        </button>
-      </div>
-    </div>
+    </section>
   );
 };
+
+export default ServiceList;

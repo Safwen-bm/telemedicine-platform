@@ -1,46 +1,55 @@
-import React from "react";
 import { Link } from "react-router-dom";
 import { BsArrowRight } from "react-icons/bs";
-import starIcon from "../../assets/images/Star.png";
 
 const DoctorCard = ({ doctor }) => {
-  const { name, averageRating, totalRating, photo, specialization, experiences } = doctor;
+  const { name, averageRating, totalRating, photo, specialization, experiences } =
+    doctor;
+
+  const hospital = experiences?.[0]?.hospital;
 
   return (
-    <div className="bg-white shadow-md hover:shadow-xl transition-shadow duration-300 rounded-2xl overflow-hidden">
-      <div className="h-48 w-full bg-gray-100 flex items-center justify-center">
+    <article className="group overflow-hidden rounded-[14px] border border-line bg-paper transition-shadow duration-300 hover:shadow-panelShadow">
+      <div className="flex h-56 w-full items-center justify-center bg-mint">
         {photo ? (
-          <img src={photo} alt="Doctor" className="object-cover w-full h-full" />
+          <img
+            src={photo}
+            alt={name ? `Portrait of ${name}` : "Doctor"}
+            className="h-full w-full object-cover"
+          />
         ) : (
-          <span className="text-gray-400 text-sm">No Photo Available</span>
+          <span className="text-[14px] text-textColor">No photo available</span>
         )}
       </div>
 
-      <div className="p-5 space-y-3">
-        <h2 className="text-xl font-semibold text-gray-900 truncate">{name || "Unknown Doctor"}</h2>
-
-        <div className="flex items-center justify-between">
-          <span className="bg-blue-100 text-blue-700 text-sm font-medium px-3 py-1 rounded-full">
-            {specialization || "N/A"}
-          </span>
-          <div className="flex items-center text-yellow-500 text-sm gap-1">
-            <img src={starIcon} alt="starIcon" className="w-4 h-4" />
-            <span>{averageRating || 0}</span>
-            <span className="text-gray-500">({totalRating || 0})</span>
-          </div>
-        </div>
-
-        <p className="text-gray-500 text-sm">
-          {experiences?.[0]?.hospital ? `At ${experiences[0].hospital}` : "Hospital Info Unavailable"}
+      <div className="space-y-2 p-5">
+        <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-primaryColor">
+          {specialization || "Specialty not set"}
+        </p>
+        <h3 className="truncate font-heading text-[24px] font-semibold text-headingColor">
+          {name || "Unknown doctor"}
+        </h3>
+        <p className="truncate text-[14px] text-textColor">
+          {hospital ? `At ${hospital}` : "Hospital info unavailable"}
         </p>
 
-        <Link
-          to={`/doctors/${doctor._id}`}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-[#2563EB] text-white text-sm font-medium rounded-full hover:bg-[#1E4FC2] transition">
-          View Profile <BsArrowRight className="w-4 h-4" />
-        </Link>
+        <div className="flex items-center justify-between border-t border-line pt-4">
+          <span className="flex items-center gap-1.5 text-[14px] text-headingColor">
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="#F2B84B" aria-hidden="true">
+              <path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z" />
+            </svg>
+            <span className="font-semibold">{Number(averageRating) || 0}</span>
+            <span className="text-textColor">({totalRating || 0})</span>
+          </span>
+
+          <Link
+            to={`/doctors/${doctor._id}`}
+            className="inline-flex items-center gap-2 text-[14px] font-semibold text-ink transition-colors hover:text-coral"
+          >
+            View profile <BsArrowRight />
+          </Link>
+        </div>
       </div>
-    </div>
+    </article>
   );
 };
 

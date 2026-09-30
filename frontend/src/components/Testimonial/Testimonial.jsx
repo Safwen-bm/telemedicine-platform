@@ -1,48 +1,89 @@
-import React from "react";
 import { Pagination } from "swiper/modules";
 import { Swiper, SwiperSlide } from "swiper/react";
 import "swiper/css";
 import "swiper/css/pagination";
 import { HiStar } from "react-icons/hi";
 
+const testimonials = [
+  {
+    name: "Aisha Mohamed",
+    message: "A truly professional service. The doctors were exceptional!",
+  },
+  {
+    name: "James Carter",
+    message: "Seamless and caring. Made my health concerns so much easier to manage.",
+  },
+  {
+    name: "Fatima Al-Sayed",
+    message: "Highly attentive doctors. An outstanding telehealth experience.",
+  },
+  {
+    name: "Liam Nguyen",
+    message: "Efficient and reliable service. I felt truly cared for.",
+  },
+  {
+    name: "Sofia Morales",
+    message: "The best teleconsultation platform I've used. Highly recommend!",
+  },
+];
+
+const initials = (name) =>
+  name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
 const Testimonial = () => {
   return (
-    <section className="py-20 bg-gray-50">
-      <div className="max-w-6xl mx-auto px-5 text-center">
+    <section className="bg-mint/60 py-24">
+      <div className="container">
+        <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-primaryColor">
+          Patient stories
+        </p>
+        <h2 className="mt-3 max-w-2xl font-heading text-[38px] font-semibold leading-[1.05] sm:text-[52px]">
+          What patients say after their <em className="font-normal text-coral">first visit.</em>
+        </h2>
 
         <Swiper
+          className="mt-12 !pb-14"
+          style={{
+            "--swiper-pagination-color": "#F0583A",
+            "--swiper-pagination-bullet-inactive-color": "#10231F",
+          }}
           modules={[Pagination]}
-          spaceBetween={30}
+          spaceBetween={24}
           slidesPerView={1}
           pagination={{ clickable: true }}
           breakpoints={{
-            640: { slidesPerView: 1, spaceBetween: 20 },
             768: { slidesPerView: 2, spaceBetween: 24 },
-            1024: { slidesPerView: 3, spaceBetween: 30 },
+            1024: { slidesPerView: 3, spaceBetween: 28 },
           }}
         >
-          {testimonials.map((testimonial, index) => (
-            <SwiperSlide key={index}>
-              <div className="bg-white p-6 rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 h-full flex flex-col justify-between">
-                <div className="flex items-center gap-4">
-                  <img
-                    src={testimonial.avatar}
-                    alt={`${testimonial.name} avatar`}
-                    className="w-14 h-14 rounded-full border-2 border-[#2563EB] object-cover"
-                  />
-                  <div className="text-left">
-                    <h4 className="text-lg font-semibold text-gray-900">{testimonial.name}</h4>
-                    <div className="flex items-center gap-1 mt-1">
-                      {[...Array(5)].map((_, idx) => (
-                        <HiStar key={idx} className="text-yellow-400 w-5 h-5" />
+          {testimonials.map((t) => (
+            <SwiperSlide key={t.name} className="!h-auto">
+              <figure className="flex h-full flex-col justify-between rounded-[14px] border border-line bg-white p-7">
+                <div>
+                  <span className="font-heading text-[56px] leading-none text-coral">“</span>
+                  <blockquote className="-mt-3 font-heading text-[21px] leading-[1.4] text-headingColor">
+                    {t.message}
+                  </blockquote>
+                </div>
+                <figcaption className="mt-8 flex items-center gap-3 border-t border-line pt-5">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-primaryColor font-heading text-[16px] text-white">
+                    {initials(t.name)}
+                  </span>
+                  <div>
+                    <p className="text-[15px] font-semibold text-headingColor">{t.name}</p>
+                    <div className="mt-0.5 flex">
+                      {[...Array(5)].map((_, i) => (
+                        <HiStar key={i} className="h-4 w-4 text-yellowColor" />
                       ))}
                     </div>
                   </div>
-                </div>
-                <p className="text-gray-600 mt-5 text-sm leading-relaxed">
-                  “{testimonial.message}”
-                </p>
-              </div>
+                </figcaption>
+              </figure>
             </SwiperSlide>
           ))}
         </Swiper>
@@ -50,33 +91,5 @@ const Testimonial = () => {
     </section>
   );
 };
-
-const testimonials = [
-  {
-    name: "Aisha Khan",
-    message: "A truly professional service. The doctors were exceptional!",
-    avatar: "/avatarf.jpg",
-  },
-  {
-    name: "James Carter",
-    message: "Seamless and caring. Made my health concerns so much easier to manage.",
-    avatar: "/avatarm.jpg",
-  },
-  {
-    name: "Fatima Al-Sayed",
-    message: "Highly attentive doctors. An outstanding telehealth experience.",
-    avatar: "/avatarf.jpg",
-  },
-  {
-    name: "Liam Nguyen",
-    message: "Efficient and reliable service. I felt truly cared for.",
-    avatar: "/avatarm.jpg",
-  },
-  {
-    name: "Sofia Morales",
-    message: "The best teleconsultation platform I’ve used. Highly recommend!",
-    avatar: "/avatarf.jpg",
-  },
-];
 
 export default Testimonial;
