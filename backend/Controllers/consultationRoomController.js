@@ -1,73 +1,94 @@
+// Telemedecine\backend\Controllers\consultationRoomController.js
+import mongoose from "mongoose";
 import ConsultationRoom from "../models/ConsultationRoomSchema.js";
 import Booking from "../models/BookingSchema.js";
 
+const ACTIVE = ["pending", "approved"];
+
+// Works whether the field is populated (an object) or a raw id, and when it is null.
+const idOf = (ref) => (ref?._id ?? ref)?.toString();
+
+// Loads the booking and checks that this user is its doctor or its patient.
+const loadBookingFor = async (bookingId, userId) => {
+  if (!mongoose.isValidObjectId(bookingId)) {
+    return { error: { status: 404, message: "Booking not found" } };
+  }
+  const booking = await Booking.findById(bookingId);
+  if (!booking) return { error: { status: 404, message: "Booking not found" } };
+
+  const isDoctor = idOf(booking.doctor) === String(userId);
+  const isPatient = idOf(booking.user) === String(userId);
+  if (!isDoctor && !isPatient) {
+    return { error: { status: 403, message: "Unauthorized access" } };
+  }
+  return { booking, isDoctor, isPatient };
+};
+
+const fail = (res, error) =>
+  res.status(error.status).json({ success: false, message: error.message });
+
 export const createOrJoinRoom = async (req, res) => {
   try {
-    const { bookingId, peerId } = req.body;
-    const userId = req.userId; // From auth middleware
-    console.log("Incoming request to join room:", { bookingId, peerId, userId, role: req.role });
+    const bookingId = req.params.bookingId || req.body.bookingId;
+    const { peerId } = req.body;
 
-    // Validate booking exists and user is part of it
-    const booking = await Booking.findById(bookingId).populate("doctor user");
-    if (!booking) {
-      console.log("Booking not found for ID:", bookingId);
-      return res.status(404).json({ success: false, message: "Booking not found" });
-    }
-    console.log("Booking details:", {
-      bookingId: booking._id,
-      doctor: booking.doctor,
-      user: booking.user,
-      requestedUserId: userId,
-    });
-
-    // Compare userId with booking.doctor._id and booking.user._id as strings
-    const isDoctor = booking.doctor._id.toString() === userId;
-    const isPatient = booking.user._id.toString() === userId;
-    if (!isDoctor && !isPatient) {
-      console.log("Unauthorized access - User not part of this booking:", { userId, booking });
-      return res.status(403).json({ success: false, message: "Unauthorized access" });
+    if (typeof peerId !== "string" || !peerId) {
+      return res.status(400).json({ success: false, message: "A peer id is required" });
     }
 
-    // Check if room already exists for this booking
-    let room = await ConsultationRoom.findOne({ booking: bookingId });
-    if (room) {
-      // Add participant if not already present
-      if (!room.participants.some((p) => p.userId.toString() === userId)) {
-        room.participants.push({ userId, peerId });
-        await room.save();
-      }
-      return res.status(200).json({ success: true, message: "Joined existing room", data: room });
+    const { booking, error } = await loadBookingFor(bookingId, req.userId);
+    if (error) return fail(res, error);
+
+    if (!ACTIVE.includes(booking.status)) {
+      return res.status(409).json({
+        success: false,
+        message:
+          booking.status === "cancelled"
+            ? "This appointment was cancelled"
+            : "This consultation has ended",
+      });
     }
 
-    // Create new room if it doesn't exist
-    room = new ConsultationRoom({
-      booking: bookingId,
-      participants: [{ userId, peerId }],
-    });
-    await room.save();
+    // The upsert is atomic: two people joining at the same moment cannot
+    // create two rooms.
+    let room = await ConsultationRoom.findOneAndUpdate(
+      { booking: booking._id },
+      { $setOnInsert: { ended: false } },
+      { new: true, upsert: true }
+    );
 
-    res.status(201).json({ success: true, message: "Room created and joined", data: room });
+    if (room.ended) {
+      return res.status(409).json({ success: false, message: "This consultation has ended" });
+    }
+
+    // Replace this user's previous entry (a page refresh gives a new peer id).
+    await ConsultationRoom.updateOne(
+      { _id: room._id },
+      { $pull: { participants: { userId: req.userId } } }
+    );
+    room = await ConsultationRoom.findOneAndUpdate(
+      { _id: room._id },
+      { $push: { participants: { userId: req.userId, peerId } } },
+      { new: true }
+    );
+
+    res.status(200).json({ success: true, message: "Joined room", data: room });
   } catch (error) {
-    console.error("Error creating/joining consultation room:", error);
-    res.status(500).json({ success: false, message: "Failed to create/join room", error: error.message });
+    console.error("Error creating/joining consultation room:", error.message);
+    res.status(500).json({ success: false, message: "Failed to create/join room" });
   }
 };
 
 export const getRoom = async (req, res) => {
   try {
     const { bookingId } = req.params;
-    const userId = req.userId;
-    const booking = await Booking.findById(bookingId).populate("doctor user");
-    if (!booking) {
-      return res.status(404).json({ success: false, message: "Booking not found" });
-    }
-    const isDoctor = booking.doctor._id.toString() === userId;
-    const isPatient = booking.user._id.toString() === userId;
-    if (!isDoctor && !isPatient) {
-      return res.status(403).json({ success: false, message: "Unauthorized access" });
-    }
+    const { booking, error } = await loadBookingFor(bookingId, req.userId);
+    if (error) return fail(res, error);
 
-    const room = await ConsultationRoom.findOne({ booking: bookingId }).populate("participants.userId", "name");
+    const room = await ConsultationRoom.findOne({ booking: booking._id }).populate(
+      "participants.userId",
+      "name"
+    );
     if (!room) {
       return res.status(404).json({ success: false, message: "Room not found" });
     }
@@ -80,28 +101,26 @@ export const getRoom = async (req, res) => {
 export const endRoom = async (req, res) => {
   try {
     const { bookingId } = req.body;
-    const userId = req.userId;
-    const booking = await Booking.findById(bookingId).populate("doctor user");
-    if (!booking) {
-      return res.status(404).json({ success: false, message: "Booking not found" });
-    }
-    const isDoctor = booking.doctor._id.toString() === userId;
-    const isPatient = booking.user._id.toString() === userId;
-    if (!isDoctor && !isPatient) {
-      return res.status(403).json({ success: false, message: "Unauthorized access" });
+    const { booking, isDoctor, error } = await loadBookingFor(bookingId, req.userId);
+    if (error) return fail(res, error);
+
+    // Only the doctor closes the consultation. A patient who hangs up is
+    // just leaving, and can come back.
+    if (!isDoctor) {
+      return res.status(200).json({ success: true, message: "You left the consultation" });
     }
 
-    const room = await ConsultationRoom.findOneAndUpdate(
-      { booking: bookingId },
-      { $set: { ended: true } },
-      { new: true }
+    await ConsultationRoom.findOneAndUpdate({ booking: booking._id }, { $set: { ended: true } });
+
+    // Never resurrect a cancelled booking.
+    await Booking.updateOne(
+      { _id: booking._id, status: { $in: ACTIVE } },
+      { $set: { status: "completed" } }
     );
-    if (!room) {
-      return res.status(404).json({ success: false, message: "Room not found" });
-    }
-    await Booking.findByIdAndUpdate(bookingId, { status: "completed" });
-    res.status(200).json({ success: true, message: "Room ended successfully" });
+
+    res.status(200).json({ success: true, message: "Consultation ended" });
   } catch (error) {
+    console.error("Error ending room:", error.message);
     res.status(500).json({ success: false, message: "Failed to end room" });
   }
 };

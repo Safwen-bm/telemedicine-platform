@@ -1,10 +1,15 @@
 import { useContext } from "react";
-import { BiMenu } from "react-icons/bi";
 import { useNavigate } from "react-router-dom";
+import { LayoutDashboard, CalendarCheck2, UserCog, LogOut } from "lucide-react";
 import { authContext } from "../../context/AuthContext";
-import { CalendarCheck2, UserCog, LogOut } from "lucide-react";
 
-const Tabs = ({ tab, setTab }) => {
+const tabs = [
+  { id: "overview", label: "Overview", icon: LayoutDashboard },
+  { id: "appointments", label: "Appointments", icon: CalendarCheck2 },
+  { id: "settings", label: "Profile settings", icon: UserCog },
+];
+
+const Tabs = ({ tab, setTab, pendingCount = 0 }) => {
   const { dispatch } = useContext(authContext);
   const navigate = useNavigate();
 
@@ -13,66 +18,45 @@ const Tabs = ({ tab, setTab }) => {
     navigate("/");
   };
 
-  const tabs = [
-    { id: "overview", label: "Overview", icon: <CalendarCheck2 className="w-5 h-5 mr-2" /> },
-    { id: "appointments", label: "Appointments", icon: <CalendarCheck2 className="w-5 h-5 mr-2" /> },
-    { id: "settings", label: "Profile Settings", icon: <UserCog className="w-5 h-5 mr-2" /> },
-  ];
-
-  const handleDeleteAccount = async () => {
-    if (window.confirm("Are you sure you want to delete your account? This action cannot be undone.")) {
-      try {
-        const response = await fetch(`${process.env.REACT_APP_API_URL}/doctors/delete-account`, {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-        });
-        if (!response.ok) throw new Error("Failed to delete account");
-        dispatch({ type: "LOGOUT" });
-        navigate("/");
-      } catch (error) {
-        console.error("Delete account error:", error.message);
-        alert("Error deleting account. Please try again.");
-      }
-    }
-  };
-
   return (
-    <div className="w-full">
-      <div className="lg:hidden mb-6">
-        <BiMenu className="w-6 h-6 cursor-pointer text-gray-700" />
-      </div>
-      <div className="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 flex flex-col gap-4">
-        {tabs.map(({ id, label, icon }) => (
-          <button
-            key={id}
-            onClick={() => setTab(id)}
-            className={`w-full flex items-center px-6 py-3 rounded-lg text-base font-semibold transition-all duration-200 ${
-              tab === id
-                ? "bg-indigo-600 text-white shadow-md"
-                : "bg-gray-50 text-gray-700 hover:bg-gray-100"
-            }`}
-          >
-            {icon}
-            {label}
-          </button>
-        ))}
-        <hr className="my-6 border-gray-200" />
+    <nav
+      aria-label="Dashboard sections"
+      className="flex gap-1 overflow-x-auto rounded-[14px] border border-line bg-white p-2 lg:flex-col"
+    >
+      {tabs.map(({ id, label, icon: Icon }) => (
         <button
-          onClick={handleLogout}
-          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg transition"
+          key={id}
+          type="button"
+          onClick={() => setTab(id)}
+          aria-current={tab === id ? "page" : undefined}
+          className={`flex shrink-0 items-center gap-3 rounded-[8px] px-4 py-3 text-[15px] font-semibold transition-colors ${
+            tab === id
+              ? "bg-primaryColor text-white"
+              : "text-textColor hover:bg-paper hover:text-headingColor"
+          }`}
         >
-          Logout
+          <Icon className="h-5 w-5" />
+          {label}
+          {id === "appointments" && pendingCount > 0 && (
+            <span
+              className={`ml-auto rounded-full px-2 py-0.5 text-[12px] ${
+                tab === id ? "bg-white/20 text-white" : "bg-mint text-primaryColor"
+              }`}
+            >
+              {pendingCount}
+            </span>
+          )}
         </button>
-        <button
-          onClick={handleDeleteAccount}
-          className="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg transition"
-        >
-          Delete Account
-        </button>
-      </div>
-    </div>
+      ))}
+      <button
+        type="button"
+        onClick={handleLogout}
+        className="flex shrink-0 items-center gap-3 rounded-[8px] px-4 py-3 text-[15px] font-semibold text-textColor transition-colors hover:bg-paper hover:text-red-700 lg:mt-1 lg:border-t lg:border-line"
+      >
+        <LogOut className="h-5 w-5" />
+        Log out
+      </button>
+    </nav>
   );
 };
 

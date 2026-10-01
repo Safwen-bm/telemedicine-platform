@@ -12,8 +12,10 @@ const Doctors = () => {
   const [query, setQuery] = useState("");
   const [debounceQuery, setDebounceQuery] = useState("");
 
-  const handleSearch = () => {
-    setQuery(query.trim());
+    const handleSearch = () => {
+    const trimmed = query.trim();
+    setQuery(trimmed);
+    setDebounceQuery(trimmed);
   };
 
   useEffect(() => {
@@ -28,7 +30,7 @@ const Doctors = () => {
     data: doctors,
     loading,
     error,
-  } = useFetchData(`${BASE_URL}/doctors?query=${debounceQuery}`);
+  } = useFetchData(`${BASE_URL}/doctors?query=${encodeURIComponent(debounceQuery)}`);
 
   return (
     <main>

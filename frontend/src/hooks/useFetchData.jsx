@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 
 const useFetchData = (url) => {
-  const { token } = useAuth();
+  const { token, dispatch } = useAuth();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -24,6 +24,10 @@ const useFetchData = (url) => {
         } catch {
           // not JSON, keep the status text
         }
+        // An expired or invalid session: log out so the user can sign in again.
+        if (res.status === 401 && token && id === requestId.current) {
+          dispatch?.({ type: "LOGOUT" });
+        }
         throw new Error(message);
       }
       const result = await res.json();
@@ -35,7 +39,7 @@ const useFetchData = (url) => {
       setLoading(false);
       setError(err.message);
     }
-  }, [url, token]);
+  }, [url, token, dispatch]);
 
   useEffect(() => {
     fetchData();

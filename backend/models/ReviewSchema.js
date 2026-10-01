@@ -35,13 +35,10 @@ reviewSchema.pre(/^find/, function (next) {
   next();
 });
 
+// Recomputes a doctor's rating. Handles a doctor with no reviews left.
 reviewSchema.statics.calcAverageRatings = async function (doctorId) {
-
-  // Aggregate to find the average rating for the doctor
   const stats = await this.aggregate([
-    {
-      $match: { doctor: doctorId },
-    },
+    { $match: { doctor: new mongoose.Types.ObjectId(String(doctorId)) } },
     {
       $group: {
         _id: "$doctor",
@@ -52,13 +49,9 @@ reviewSchema.statics.calcAverageRatings = async function (doctorId) {
   ]);
 
   await Doctor.findByIdAndUpdate(doctorId, {
-    totalRating: stats[0].numOfRating,
-    averageRating: stats[0].avgRating,
+    totalRating: stats[0]?.numOfRating || 0,
+    averageRating: stats[0] ? Math.round(stats[0].avgRating * 10) / 10 : 0,
   });
 };
-
-reviewSchema.post("save", function () {
-  this.constructor.calcAverageRatings(this.doctor);
-});
 
 export default mongoose.model("Review", reviewSchema);

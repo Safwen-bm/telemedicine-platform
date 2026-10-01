@@ -150,6 +150,7 @@ const ConsultationRoom = () => {
       });
       socket.on("connect", announce);
       socket.on("connect_error", () => toast.error("Connection error. Please check your network."));
+      socket.on("join-error", ({ message }) => fail(message));
       socket.on("user-joined", ({ peerId: remotePeerId }) => {
         if (peer && remotePeerId) handleCall(peer.call(remotePeerId, outgoing));
       });
@@ -211,7 +212,13 @@ const ConsultationRoom = () => {
 
   const leave = () => navigate(role === "doctor" ? "/doctors/profile/me" : "/users/profile/me");
 
-  const endCall = async () => {
+    const endCall = async () => {
+      if (
+        role === "doctor" &&
+        !window.confirm("End the consultation? The appointment will be marked as completed.")
+      ) {
+        return;
+      }
     try {
       await fetch(`${BASE_URL}/consultation-rooms/end`, {
         method: "POST",
@@ -341,7 +348,7 @@ const ConsultationRoom = () => {
           onClick={endCall}
           className="flex h-12 items-center gap-2 rounded-full bg-red-600 px-6 text-[14px] font-semibold hover:bg-red-700"
         >
-          <FiPhoneMissed /> End call
+          <FiPhoneMissed /> {role === "doctor" ? "End consultation" : "Leave"}
         </button>
       </footer>
     </div>

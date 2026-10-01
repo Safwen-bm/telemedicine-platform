@@ -1,81 +1,76 @@
-import React from "react";
 import { formateDate } from "../../utils/formateDate";
 
-const DoctorAbout = ({ name, about, qualifications, experiences }) => {
+const dateRange = (item) => {
+  if (!item?.startingDate) return "";
+  const end = item.endingDate ? formateDate(item.endingDate) : "Present";
+  return `${formateDate(item.startingDate)} - ${end}`;
+};
+
+const Eyebrow = ({ children }) => (
+  <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-primaryColor">
+    {children}
+  </p>
+);
+
+const TimelineRow = ({ title, subtitle, range }) => (
+  <li className="grid gap-1 border-b border-line py-5 sm:grid-cols-[1fr_auto] sm:gap-8">
+    <div className="min-w-0">
+      <p className="font-heading text-[20px] font-semibold text-headingColor">{title}</p>
+      {subtitle && <p className="mt-0.5 text-[15px] text-textColor">{subtitle}</p>}
+    </div>
+    {range && <p className="text-[13px] text-textColor sm:pt-1.5">{range}</p>}
+  </li>
+);
+
+const DoctorAbout = ({ about, qualifications, experiences }) => {
   return (
-    <div className="space-y-12">
-      {/* Professional Summary */}
-      <div className="animate-fade-in">
-        <h2 className="text-2xl font-semibold text-gray-900">Professional Summary</h2>
-        <p className="text-gray-600 mt-4 leading-relaxed text-base max-w-2xl">
-          {about || "A highly skilled professional dedicated to delivering top-tier healthcare services with extensive experience."}
-        </p>
-      </div>
+    <div className="space-y-14">
+      <section>
+        <Eyebrow>Professional summary</Eyebrow>
+        {about ? (
+          <p className="mt-4 max-w-2xl whitespace-pre-line text-[17px] leading-8 text-textColor">
+            {about}
+          </p>
+        ) : (
+          <p className="mt-4 italic text-textColor">This doctor has not added a summary yet.</p>
+        )}
+      </section>
 
-      {/* Qualifications */}
-      <div className="animate-fade-in">
-        <h2 className="text-2xl font-semibold text-gray-900">Qualifications</h2>
-        <ul className="mt-6 space-y-4">
-          {qualifications?.length > 0 ? (
-            qualifications.map((item, index) => (
-              <li
-                key={index}
-                className="bg-white p-5 rounded-lg shadow-md hover:shadow-lg transition-all duration-300"
-              >
-                <div className="flex flex-col sm:flex-row justify-between items-start">
-                  <div>
-                    <p className="text-gray-800 font-medium text-lg">{item.degree || "Degree Not Specified"}</p>
-                    <p className="text-sm text-gray-600">{item.university || "University Not Specified"}</p>
-                  </div>
-                  <span className="text-blue-600 text-sm font-medium mt-2 sm:mt-0">
-                    {formateDate(item.startingDate)} - {item.endingDate ? formateDate(item.endingDate) : "Present"}
-                  </span>
-                </div>
-              </li>
-            ))
-          ) : (
-            <p className="text-gray-500 italic">No qualifications listed.</p>
-          )}
-        </ul>
-      </div>
+      <section>
+        <Eyebrow>Qualifications</Eyebrow>
+        {qualifications?.length > 0 ? (
+          <ul className="mt-4 border-t border-line">
+            {qualifications.map((item, index) => (
+              <TimelineRow
+                key={item._id || index}
+                title={item.degree || "Degree not specified"}
+                subtitle={item.university || "University not specified"}
+                range={dateRange(item)}
+              />
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-4 italic text-textColor">No qualifications listed.</p>
+        )}
+      </section>
 
-      {/* Experience */}
-      <div className="animate-fade-in">
-        <h2 className="text-2xl font-semibold text-gray-900">Professional Experience</h2>
-        <ul className="grid sm:grid-cols-2 gap-4 mt-6">
-          {experiences?.length > 0 ? (
-            experiences.map((item, index) => (
-              <li
-                key={index}
-                className="bg-white p-5 rounded-lg shadow-md hover:shadow-lg transition-all duration-300"
-              >
-                <div className="flex flex-col sm:flex-row justify-between items-start">
-                  <div>
-                    <p className="text-gray-800 font-medium text-lg">{item.position || "Position Not Specified"}</p>
-                    <p className="text-sm text-gray-600">{item.hospital || "Hospital Not Specified"}</p>
-                  </div>
-                  <span className="text-blue-600 text-sm font-medium mt-2 sm:mt-0">
-                    {formateDate(item.startingDate)} - {item.endingDate ? formateDate(item.endingDate) : "Present"}
-                  </span>
-                </div>
-              </li>
-            ))
-          ) : (
-            <p className="text-gray-500 italic">No experience listed.</p>
-          )}
-        </ul>
-      </div>
-
-      {/* Inline Styles for Animations */}
-      <style jsx>{`
-        @keyframes fade-in {
-          0% { opacity: 0; transform: translateY(10px); }
-          100% { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fade-in {
-          animation: fade-in 0.6s ease-out;
-        }
-      `}</style>
+      <section>
+        <Eyebrow>Professional experience</Eyebrow>
+        {experiences?.length > 0 ? (
+          <ul className="mt-4 border-t border-line">
+            {experiences.map((item, index) => (
+              <TimelineRow
+                key={item._id || index}
+                title={item.position || "Position not specified"}
+                subtitle={item.hospital || "Hospital not specified"}
+                range={dateRange(item)}
+              />
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-4 italic text-textColor">No experience listed.</p>
+        )}
+      </section>
     </div>
   );
 };

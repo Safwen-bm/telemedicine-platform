@@ -19,57 +19,13 @@ const asyncHandler = (fn) => (req, res, next) => {
   Promise.resolve(fn(req, res, next)).catch(next);
 };
 
-// Routes
 // Nested route for reviews
 router.use("/:doctorId/reviews", reviewRouter);
 
 // Public route to get all approved doctors (for patients to browse)
 router.get("/", asyncHandler(getAllDoctors));
 
-// Public route to get a single doctor by ID
-router.get("/:id", asyncHandler(getSingleDoctor));
-
-// Protected route to get doctor's own profile
-router.get(
-  "/profile/me",
-  asyncHandler(authenticate),
-  asyncHandler(restrict(["doctor"])),
-  asyncHandler(getDoctorProfile)
-);
-
-// Protected route for doctor to update their own profile
-router.put(
-  "/:id",
-  asyncHandler(authenticate),
-  asyncHandler(restrict(["doctor"])),
-  asyncHandler(updateDoctor)
-);
-
-// Protected route for doctor to delete their own account
-router.delete(
-  "/:id",
-  asyncHandler(authenticate),
-  asyncHandler(restrict(["doctor"])),
-  asyncHandler(deleteDoctor)
-);
-
-// Protected route for doctor to send reminders
-router.post(
-  "/appointments/:bookingId/send-reminder",
-  asyncHandler(authenticate),
-  asyncHandler(restrict(["doctor"])),
-  asyncHandler(sendReminder)
-);
-
-// Protected route for admin to get all doctors
-router.get(
-  "/admin/doctors",
-  asyncHandler(authenticate),
-  asyncHandler(restrict(["admin"])),
-  asyncHandler(getAllDoctors)
-);
-
-// Protected route for admin to get pending doctors
+// Fixed routes MUST come before "/:id", otherwise "pending" is read as an id.
 router.get(
   "/pending",
   asyncHandler(authenticate),
@@ -77,7 +33,20 @@ router.get(
   asyncHandler(getPendingDoctors)
 );
 
-// Protected route for admin to approve/reject doctors
+router.get(
+  "/profile/me",
+  asyncHandler(authenticate),
+  asyncHandler(restrict(["doctor"])),
+  asyncHandler(getDoctorProfile)
+);
+
+router.get(
+  "/admin/doctors",
+  asyncHandler(authenticate),
+  asyncHandler(restrict(["admin"])),
+  asyncHandler(getAllDoctors)
+);
+
 router.patch(
   "/approve",
   asyncHandler(authenticate),
@@ -85,11 +54,29 @@ router.patch(
   asyncHandler(updateDoctorApproval)
 );
 
-export default router;
+router.post(
+  "/appointments/:bookingId/send-reminder",
+  asyncHandler(authenticate),
+  asyncHandler(restrict(["doctor"])),
+  asyncHandler(sendReminder)
+);
 
-{/*µOther Admin Responsibilities
-Manage Users: View, edit, or delete patient profiles.
-Manage Bookings: Already implemented (view/cancel bookings).
-Analytics: View stats (e.g., total doctors, patients, bookings).
-Moderation: Delete inappropriate doctor reviews.
-Notifications: Send reminders or announcements to users/doctors*/}
+// Public route to get a single doctor by ID
+router.get("/:id", asyncHandler(getSingleDoctor));
+
+// Doctor updates / deletes their own account
+router.put(
+  "/:id",
+  asyncHandler(authenticate),
+  asyncHandler(restrict(["doctor"])),
+  asyncHandler(updateDoctor)
+);
+
+router.delete(
+  "/:id",
+  asyncHandler(authenticate),
+  asyncHandler(restrict(["doctor"])),
+  asyncHandler(deleteDoctor)
+);
+
+export default router;

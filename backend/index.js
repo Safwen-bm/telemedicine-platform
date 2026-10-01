@@ -18,6 +18,8 @@ import http from "http";
 import { ExpressPeerServer } from "peer";
 import sgMail from "@sendgrid/mail";
 import { stripeWebhook } from "./Controllers/bookingController.js";
+import { verifyJwt } from "./auth/verifyToken.js";
+import Booking from "./models/BookingSchema.js";
 
 const isProd = process.env.NODE_ENV === "production";
 const debug = (...args) => {
@@ -44,6 +46,7 @@ const allowedOrigins = [process.env.CLIENT_SITE_URL, !isProd && "http://localhos
 
 const app = express();
 app.disable("x-powered-by");
+if (isProd) app.set("trust proxy", 1);
 const server = http.createServer(app);
 
 const io = new Server(server, {
@@ -95,13 +98,44 @@ app.use((err, req, res, next) => {
     .json({ success: false, message: isProd ? "Server error" : err.message });
 });
 
+// Only logged-in users can open a socket.
+io.use((socket, next) => {
+  try {
+    const decoded = verifyJwt(socket.handshake.auth?.token);
+    socket.data.userId = String(decoded.id);
+    next();
+  } catch {
+    next(new Error("Authentication required"));
+  }
+});
+
 io.on("connection", (socket) => {
   debug("New client connected:", socket.id);
 
-  socket.on("join-consultation", ({ bookingId, userId, peerId }) => {
-    socket.join(bookingId);
-    debug(`User ${userId} joined consultation ${bookingId}`);
-    socket.to(bookingId).emit("user-joined", { userId, peerId, socketId: socket.id });
+  socket.on("join-consultation", async ({ bookingId, peerId } = {}) => {
+    try {
+      if (!mongoose.isValidObjectId(bookingId) || typeof peerId !== "string" || !peerId) return;
+
+      const booking = await Booking.findById(bookingId);
+      const members = [booking?.user?._id, booking?.doctor?._id].map((id) => String(id));
+
+      if (
+        !booking ||
+        !members.includes(socket.data.userId) ||
+        !["pending", "approved"].includes(booking.status)
+      ) {
+        socket.emit("join-error", { message: "You cannot join this consultation" });
+        return;
+      }
+
+      const room = String(bookingId);
+      socket.join(room);
+      socket
+        .to(room)
+        .emit("user-joined", { userId: socket.data.userId, peerId, socketId: socket.id });
+    } catch (err) {
+      console.error("join-consultation failed:", err.message);
+    }
   });
 
   socket.on("disconnect", (reason) => {

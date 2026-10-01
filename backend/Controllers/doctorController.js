@@ -3,21 +3,30 @@ import bcrypt from "bcryptjs";
 import sgMail from "@sendgrid/mail";
 import Doctor from "../models/DoctorSchema.js";
 import Booking from "../models/BookingSchema.js";
+import MedicalNote from "../models/MedicalNoteSchema.js";
+import Review from "../models/ReviewSchema.js";
 
 const TIME_ZONE = process.env.APP_TIMEZONE || "Africa/Tunis";
 
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-// A doctor must never be able to change these through the profile form.
-const PROTECTED_FIELDS = [
-  "_id",
-  "role",
-  "isApproved",
-  "reviews",
-  "averageRating",
-  "totalRating",
-  "appointments",
+// A doctor can only change these through the profile form.
+// Never add email, role, isApproved, ratings or reviews here.
+const UPDATABLE_FIELDS = [
+  "name",
+  "phone",
+  "bio",
+  "gender",
+  "specialization",
+  "ticketPrice",
+  "qualifications",
+  "experiences",
+  "about",
+  "photo",
 ];
+const REQUIRED_FIELDS = ["name"];
+
+const bad = (res, message) => res.status(400).json({ success: false, message });
 
 export const updateDoctor = async (req, res) => {
   const id = req.params.id;
@@ -28,24 +37,61 @@ export const updateDoctor = async (req, res) => {
         .json({ success: false, message: "You can only update your own profile" });
     }
 
-    const updateData = { ...req.body };
-    for (const field of PROTECTED_FIELDS) delete updateData[field];
+    const set = {};
+    const unset = {};
+    for (const field of UPDATABLE_FIELDS) {
+      const value = req.body[field];
+      if (value === undefined) continue;
 
-    if (typeof updateData.password === "string" && updateData.password) {
-      updateData.password = await bcrypt.hash(updateData.password, 10);
-    } else {
-      delete updateData.password;
+      // An empty optional field means "clear it". Saving "" would break the
+      // enum validation later (for example when an admin approves the doctor).
+      if (value === "" || value === null) {
+        if (REQUIRED_FIELDS.includes(field)) return bad(res, `${field} is required`);
+        unset[field] = "";
+      } else {
+        set[field] = value;
+      }
     }
 
-    const updated = await Doctor.findByIdAndUpdate(id, { $set: updateData }, { new: true }).select(
-      "-password"
-    );
+    if (set.name !== undefined) {
+      set.name = String(set.name).trim();
+      if (!set.name) return bad(res, "name is required");
+    }
+    if (set.bio !== undefined && String(set.bio).length > 100) {
+      return bad(res, "Bio must be 100 characters or fewer");
+    }
+    if (set.ticketPrice !== undefined) {
+      set.ticketPrice = Number(set.ticketPrice);
+      if (!Number.isFinite(set.ticketPrice) || set.ticketPrice < 0) {
+        return bad(res, "Consultation fee must be a positive number");
+      }
+    }
+    for (const key of ["qualifications", "experiences"]) {
+      if (set[key] !== undefined && !Array.isArray(set[key])) {
+        return bad(res, `${key} must be a list`);
+      }
+    }
+
+    if (typeof req.body.password === "string" && req.body.password) {
+      set.password = await bcrypt.hash(req.body.password, 10);
+    }
+
+    const update = {};
+    if (Object.keys(set).length) update.$set = set;
+    if (Object.keys(unset).length) update.$unset = unset;
+
+    const updated = await Doctor.findByIdAndUpdate(id, update, {
+      new: true,
+      runValidators: true,
+    }).select("-password");
+
     if (!updated) {
       return res.status(404).json({ success: false, message: "Doctor not found" });
     }
 
     res.status(200).json({ success: true, message: "Doctor updated", data: updated });
   } catch (err) {
+    if (err.name === "ValidationError") return bad(res, err.message);
     console.error("Update doctor error:", err.message);
     res.status(500).json({ success: false, message: "Failed to update Doctor" });
   }
@@ -57,10 +103,23 @@ export const deleteDoctor = async (req, res) => {
     if (req.role !== "admin" && String(req.userId) !== id) {
       return res.status(403).json({ success: false, message: "Unauthorized access" });
     }
+
+    // Patients have paid for pending appointments, so those must be dealt with first.
+    const pending = await Booking.countDocuments({ doctor: id, status: "pending" });
+    if (pending > 0) {
+      return bad(
+        res,
+        `You still have ${pending} pending appointment${pending > 1 ? "s" : ""}. Complete or cancel ${
+          pending > 1 ? "them" : "it"
+        } before deleting your account.`
+      );
+    }
+
     const doctor = await Doctor.findByIdAndDelete(id);
     if (!doctor) {
       return res.status(404).json({ success: false, message: "Doctor not found" });
     }
+    await Review.deleteMany({ doctor: id });
     res.status(200).json({ success: true, message: "Doctor deleted" });
   } catch (err) {
     console.error("Delete doctor error:", err.message);
@@ -108,10 +167,19 @@ export const getDoctorProfile = async (req, res) => {
     if (!doctor) return res.status(404).json({ success: false, message: "Doctor not found" });
 
     const { password, ...rest } = doctor.toObject();
-    const appointments = await Booking.find({ doctor: doctorId }).populate(
-      "user",
-      "name email photo gender"
-    );
+
+    const [bookings, notes] = await Promise.all([
+      Booking.find({ doctor: doctorId }).populate("user", "name email photo gender"),
+      MedicalNote.find({ doctor: doctorId }).select("_id booking"),
+    ]);
+
+    // The dashboard needs to know which appointments already have a note.
+    const noteByBooking = new Map(notes.map((n) => [String(n.booking), String(n._id)]));
+    const appointments = bookings.map((b) => ({
+      ...b.toObject(),
+      noteId: noteByBooking.get(String(b._id)) || null,
+    }));
+
     res
       .status(200)
       .json({ success: true, message: "Profile retrieved", data: { ...rest, appointments } });
@@ -121,7 +189,7 @@ export const getDoctorProfile = async (req, res) => {
   }
 };
 
-// Kept in case Routes/doctor.js still imports it. The dashboard uses
+// Kept because Routes/doctor.js imports it. The dashboard uses
 // POST /bookings/notify/:id (bookingController) instead.
 export const sendReminder = async (req, res) => {
   const { bookingId } = req.params;
@@ -131,7 +199,6 @@ export const sendReminder = async (req, res) => {
       .populate("doctor", "name");
     if (!booking) return res.status(404).json({ success: false, message: "Booking not found" });
 
-    // Only the doctor of this booking may send the reminder.
     if (String(booking.doctor?._id) !== String(req.userId)) {
       return res.status(403).json({ success: false, message: "Unauthorized access" });
     }

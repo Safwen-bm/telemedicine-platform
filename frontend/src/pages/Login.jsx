@@ -79,6 +79,7 @@ const Login = () => {
                 type="email"
                 placeholder="your@email.com"
                 name="email"
+                autoComplete="email"
                 value={formData.email}
                 onChange={handleInputChange}
                 className="w-full border-b border-line bg-transparent px-0 py-3 text-[16px] leading-7 text-headingColor placeholder:text-textColor/60 transition-colors focus:border-primaryColor focus:outline-none"
@@ -99,6 +100,7 @@ const Login = () => {
                 type="password"
                 placeholder="Your password"
                 name="password"
+                autoComplete="current-password"
                 value={formData.password}
                 onChange={handleInputChange}
                 className="w-full border-b border-line bg-transparent px-0 py-3 text-[16px] leading-7 text-headingColor placeholder:text-textColor/60 transition-colors focus:border-primaryColor focus:outline-none"

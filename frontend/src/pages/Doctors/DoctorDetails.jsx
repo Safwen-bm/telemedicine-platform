@@ -1,18 +1,27 @@
 import { useState } from "react";
-import { useParams } from "react-router-dom";
-import { Star } from "lucide-react";
+import { Link, useParams } from "react-router-dom";
+import { ArrowLeft, Star, Building2 } from "lucide-react";
 import DoctorAbout from "./DoctorAbout";
 import Feedback from "./Feedback";
 import SidePanel from "./SidePanel";
 import { BASE_URL } from "./../../config";
 import useFetchData from "./../../hooks/useFetchData";
 import Loader from "../../components/Loader/Loading";
-import Error from "../../components/Error/Error";
+import ErrorMsg from "../../components/Error/Error";
 
 const DoctorDetails = () => {
   const [tab, setTab] = useState("about");
   const { id } = useParams();
-  const { data: doctor, loading, error } = useFetchData(`${BASE_URL}/doctors/${id}`);
+  const {
+    data: doctor,
+    loading,
+    error,
+    refetch,
+  } = useFetchData(`${BASE_URL}/doctors/${id}`);
+
+  // Only show the loader for the first load (or a different doctor), so a
+  // refetch after a new review does not blank the page.
+  const showLoader = loading && doctor?._id !== id;
 
   const {
     name,
@@ -26,61 +35,120 @@ const DoctorDetails = () => {
     specialization,
     ticketPrice,
     photo,
-  } = doctor;
+    isApproved,
+  } = doctor || {};
+
+  const rating = Number(averageRating) || 0;
+  const reviewCount = Number(totalRating) || 0;
+  const hospital = experiences?.[0]?.hospital;
+  const bookable = !isApproved || isApproved === "approved";
+
+  const tabs = [
+    { key: "about", label: "About" },
+    { key: "feedback", label: `Reviews (${reviewCount})` },
+  ];
 
   return (
-    <section className="bg-gray-50 min-h-screen py-12">
-      <div className="max-w-7xl mx-auto px-6">
-        {loading && <Loader />}
-        {error && <Error />}
-        {!loading && !error && (
-          <div className="grid lg:grid-cols-12 gap-8">
-            {/* Main Content */}
+    <section className="min-h-screen pb-24 pt-28">
+      <div className="container">
+        <Link
+          to="/doctors"
+          className="inline-flex items-center gap-2 text-[14px] font-semibold text-textColor transition-colors hover:text-primaryColor"
+        >
+          <ArrowLeft className="h-4 w-4" /> All doctors
+        </Link>
+
+        {showLoader && (
+          <div className="py-20">
+            <Loader />
+          </div>
+        )}
+
+        {error && !showLoader && (
+          <div className="py-20">
+            <ErrorMsg errMessage={error} />
+          </div>
+        )}
+
+        {!showLoader && !error && doctor?._id && (
+          <div className="mt-8 grid gap-12 lg:grid-cols-12">
+            {/* main column */}
             <div className="lg:col-span-8">
-              <div className="bg-white shadow-lg rounded-2xl p-8">
-                <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
-                  <figure className="w-40 h-40 rounded-full overflow-hidden border-2 border-gray-200 shadow-md">
-                    <img src={photo} alt="Doctor" className="w-full h-full object-cover" />
-                  </figure>
-                  <div className="text-center sm:text-left">
-                    <span className="inline-block bg-gray-200 text-gray-800 px-5 py-2 rounded-full text-sm font-medium capitalize">
-                      {specialization || "Specialist"}
-                    </span>
-                    <h3 className="text-2xl font-bold text-gray-900 mt-4">{name || "Dr. John Doe"}</h3>
-                    <div className="flex items-center justify-center sm:justify-start gap-2 mt-3">
-                      <span className="flex items-center gap-1 text-gray-700 font-semibold text-sm">
-                        <Star className="w-5 h-5 fill-current" />
-                        {averageRating || "N/A"}
-                      </span>
-                      <span className="text-gray-500 text-sm">({totalRating || 0})</span>
+              <header className="flex flex-col gap-8 sm:flex-row sm:items-start">
+                <div className="relative mx-auto shrink-0 sm:mx-0">
+                  <div className="absolute inset-0 translate-x-3 translate-y-3 rounded-[14px] border-2 border-primaryColor" />
+                  {photo ? (
+                    <img
+                      src={photo}
+                      alt={name ? `Portrait of ${name}` : "Doctor"}
+                      className="relative h-60 w-48 rounded-[14px] bg-mint object-cover"
+                    />
+                  ) : (
+                    <div className="relative flex h-60 w-48 items-center justify-center rounded-[14px] bg-mint font-heading text-[64px] text-primaryColor">
+                      {(name || "D").charAt(0).toUpperCase()}
                     </div>
-                    <p className="text-gray-600 mt-4 leading-relaxed max-w-xl text-base">
-                      {bio || "A dedicated professional with a commitment to excellence in healthcare."}
-                    </p>
-                  </div>
+                  )}
                 </div>
+
+                <div className="min-w-0 text-center sm:pt-1 sm:text-left">
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-primaryColor">
+                    {specialization || "Specialist"}
+                  </p>
+                  <h1 className="mt-2 font-heading text-[38px] font-semibold leading-[1.05] tracking-[-0.02em] text-headingColor sm:text-[48px]">
+                    {name}
+                  </h1>
+
+                  <div className="mt-4 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 sm:justify-start">
+                    <button
+                      type="button"
+                      onClick={() => setTab("feedback")}
+                      className="flex items-center gap-2 text-[15px] text-headingColor hover:text-primaryColor"
+                    >
+                      <Star className="h-5 w-5 fill-yellowColor text-yellowColor" />
+                      <span className="font-semibold">
+                        {reviewCount > 0 ? rating.toFixed(1) : "No ratings yet"}
+                      </span>
+                      {reviewCount > 0 && (
+                        <span className="text-textColor">
+                          ({reviewCount} {reviewCount === 1 ? "review" : "reviews"})
+                        </span>
+                      )}
+                    </button>
+
+                    {hospital && (
+                      <span className="flex items-center gap-2 text-[15px] text-textColor">
+                        <Building2 className="h-4 w-4" /> {hospital}
+                      </span>
+                    )}
+                  </div>
+
+                  {bio && (
+                    <p className="mt-5 max-w-xl text-[17px] leading-7 text-textColor">{bio}</p>
+                  )}
+                </div>
+              </header>
+
+              {/* tabs */}
+              <div className="mt-12 flex gap-8 border-b border-line" role="tablist">
+                {tabs.map((t) => (
+                  <button
+                    key={t.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={tab === t.key}
+                    onClick={() => setTab(t.key)}
+                    className={`-mb-px border-b-2 pb-3 text-[15px] font-semibold transition-colors ${
+                      tab === t.key
+                        ? "border-coral text-headingColor"
+                        : "border-transparent text-textColor hover:text-primaryColor"
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
               </div>
 
-              <div className="mt-8 border-b border-gray-200">
-                <button
-                  onClick={() => setTab("about")}
-                  className={`py-3 px-6 text-base font-semibold text-gray-900 transition-all duration-200 ${
-                    tab === "about" ? "border-b-2 border-blue-600 text-blue-600" : "hover:text-blue-600"
-                  }`}
-                >
-                  About
-                </button>
-                <button
-                  onClick={() => setTab("feedback")}
-                  className={`py-3 px-6 text-base font-semibold text-gray-900 transition-all duration-200 ${
-                    tab === "feedback" ? "border-b-2 border-blue-600 text-blue-600" : "hover:text-blue-600"
-                  }`}
-                >
-                  Feedback
-                </button>
-              </div>
-
-              <div className="mt-8">
+              <div className="mt-10">
                 {tab === "about" && (
                   <DoctorAbout
                     name={name}
@@ -90,15 +158,28 @@ const DoctorDetails = () => {
                   />
                 )}
                 {tab === "feedback" && (
-                  <Feedback reviews={reviews} totalRating={totalRating} />
+                  <Feedback
+                    reviews={reviews}
+                    totalRating={totalRating}
+                    averageRating={averageRating}
+                    onReviewAdded={refetch}
+                  />
                 )}
               </div>
             </div>
 
-            {/* Side Panel */}
-            <div className="lg:col-span-4">
-              <SidePanel doctorId={doctor._id} ticketPrice={ticketPrice} />
-            </div>
+            {/* booking panel */}
+            <aside className="lg:col-span-4">
+              <div className="lg:sticky lg:top-24">
+                {bookable ? (
+                  <SidePanel doctorId={doctor._id} ticketPrice={ticketPrice} />
+                ) : (
+                  <div className="rounded-[14px] border border-line bg-white p-6 text-[15px] leading-7 text-textColor">
+                    This doctor is not accepting bookings at the moment.
+                  </div>
+                )}
+              </div>
+            </aside>
           </div>
         )}
       </div>

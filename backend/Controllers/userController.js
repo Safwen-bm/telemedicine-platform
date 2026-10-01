@@ -4,6 +4,8 @@ import User from "../models/UserSchema.js";
 import Booking from "../models/BookingSchema.js";
 import MedicalNote from "../models/MedicalNoteSchema.js";
 import MedicalFolder from "../models/MedicalFolderSchema.js";
+import Review from "../models/ReviewSchema.js";
+import Doctor from "../models/DoctorSchema.js";
 
 // Only these fields can be changed through the profile form.
 // Never add role, email or password here (password is handled separately).
@@ -94,12 +96,25 @@ export const deleteUser = async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    // Remove everything that belongs to this patient.
+    // Reviews written by this patient, and the doctors they affect.
+    const reviews = await Review.find({ user: id }).select("doctor").lean();
+    const reviewIds = reviews.map((r) => r._id);
+    const doctorIds = [...new Set(reviews.map((r) => String(r.doctor)))];
+
     await Promise.all([
       Booking.deleteMany({ user: id }),
       MedicalNote.deleteMany({ patient: id }),
       MedicalFolder.deleteMany({ patient: id }),
+      Review.deleteMany({ user: id }),
     ]);
+
+    if (doctorIds.length) {
+      await Doctor.updateMany(
+        { _id: { $in: doctorIds } },
+        { $pull: { reviews: { $in: reviewIds } } }
+      );
+      await Promise.all(doctorIds.map((doctorId) => Review.calcAverageRatings(doctorId)));
+    }
 
     res.status(200).json({ success: true, message: "User successfully deleted" });
   } catch (err) {
