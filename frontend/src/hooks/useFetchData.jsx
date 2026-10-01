@@ -1,15 +1,17 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 
 const useFetchData = (url) => {
   const { token } = useAuth();
   const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const requestId = useRef(0);
 
   const fetchData = useCallback(async () => {
+    const id = ++requestId.current;
     setLoading(true);
-    setError(null); // Clear previous errors
+    setError(null);
     try {
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
@@ -18,17 +20,18 @@ const useFetchData = (url) => {
         const text = await res.text();
         let message = `Error ${res.status}: ${res.statusText}`;
         try {
-          const result = JSON.parse(text);
-          message = result.message || message;
-        } catch (jsonErr) {
-          // If parsing fails, use the status text
+          message = JSON.parse(text).message || message;
+        } catch {
+          // not JSON, keep the status text
         }
         throw new Error(message);
       }
       const result = await res.json();
-      setData(result.data);
+      if (id !== requestId.current) return; // a newer request replaced this one
+      setData(result.data ?? []);
       setLoading(false);
     } catch (err) {
+      if (id !== requestId.current) return;
       setLoading(false);
       setError(err.message);
     }
@@ -36,6 +39,9 @@ const useFetchData = (url) => {
 
   useEffect(() => {
     fetchData();
+    return () => {
+      requestId.current++; // ignore responses after unmount or url change
+    };
   }, [fetchData]);
 
   return { data, loading, error, refetch: fetchData };

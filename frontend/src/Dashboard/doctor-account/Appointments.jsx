@@ -1,325 +1,416 @@
-import { useState, useEffect } from "react";
+// Telemedecine\frontend\src\Dashboard\doctor-account\Appointments.jsx
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { CalendarDays, FolderOpen, Video, Bell, Check, FileText } from "lucide-react";
+import { toast } from "react-toastify";
 import { useAuth } from "../../context/AuthContext.jsx";
 import { BASE_URL } from "../../config";
-import { toast } from "react-toastify";
+import {
+  PanelHeader,
+  EmptyState,
+  StatusBadge,
+  Modal,
+  inputClass,
+  labelClass,
+  fmtDate,
+  fmtTime,
+} from "../../components/ui/dashboard.jsx";
+
+const JOIN_WINDOW_MS = 15 * 60 * 1000;
+const EMPTY_NOTE = { diagnosis: "", treatment: "", notes: "" };
+
+const FILTERS = [
+  { key: "pending", label: "Pending" },
+  { key: "completed", label: "Completed" },
+  { key: "cancelled", label: "Cancelled" },
+];
+
+const btnPrimary =
+  "inline-flex items-center gap-2 rounded-[8px] bg-primaryColor px-4 py-2 text-[14px] font-semibold text-white transition-colors hover:bg-ink disabled:opacity-50";
+const btnSecondary =
+  "inline-flex items-center gap-2 rounded-[8px] border border-line bg-white px-4 py-2 text-[14px] font-semibold text-headingColor transition-colors hover:border-primaryColor hover:text-primaryColor disabled:opacity-50";
 
 const Appointments = ({ appointments: initialAppointments }) => {
   const { token } = useAuth();
   const navigate = useNavigate();
+
   const [appointments, setAppointments] = useState(initialAppointments || []);
-  const [showNoteModal, setShowNoteModal] = useState(false);
-  const [selectedBooking, setSelectedBooking] = useState(null);
-  const [noteData, setNoteData] = useState({ diagnosis: "", treatment: "", notes: "" });
+  const [filter, setFilter] = useState("pending");
+  const [busyId, setBusyId] = useState(null);
+  const [toCancel, setToCancel] = useState(null);
+  const [noteBooking, setNoteBooking] = useState(null);
+  const [noteData, setNoteData] = useState(EMPTY_NOTE);
+  const [savingNote, setSavingNote] = useState(false);
 
   useEffect(() => {
     setAppointments(initialAppointments || []);
   }, [initialAppointments]);
 
-  const cancelAppointment = async (bookingId) => {
+  const request = async (url, method, body) => {
+    const res = await fetch(url, {
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(body ? { "Content-Type": "application/json" } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || "Request failed");
+    return data;
+  };
+
+  const patchAppointment = (id, patch) =>
+    setAppointments((prev) => prev.map((a) => (a._id === id ? { ...a, ...patch } : a)));
+
+  const runAction = async (id, action) => {
+    setBusyId(id);
     try {
-      const res = await fetch(`${BASE_URL}/bookings/cancel/${bookingId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setAppointments((prev) =>
-          prev.map((appt) =>
-            appt._id === bookingId ? { ...appt, status: "cancelled" } : appt
-          )
-        );
-        toast.success("Appointment cancelled successfully");
-      } else {
-        toast.error(data.message || "Failed to cancel appointment");
-      }
+      await action();
     } catch (err) {
-      toast.error("Error cancelling appointment");
+      toast.error(err.message);
+    } finally {
+      setBusyId(null);
     }
   };
 
-  const joinConsultation = (bookingId) => {
-    navigate(`/consultation/${bookingId}`);
+  const sendReminder = (appt) =>
+    runAction(appt._id, async () => {
+      await request(`${BASE_URL}/bookings/notify/${appt._id}`, "POST");
+      toast.success("Reminder sent successfully");
+    });
+
+  const markCompleted = (appt) =>
+    runAction(appt._id, async () => {
+      await request(`${BASE_URL}/bookings/complete/${appt._id}`, "PATCH");
+      patchAppointment(appt._id, { status: "completed" });
+      toast.success("Appointment marked as completed");
+    });
+
+  const confirmCancel = () => {
+    const appt = toCancel;
+    runAction(appt._id, async () => {
+      const data = await request(`${BASE_URL}/bookings/cancel/${appt._id}`, "DELETE");
+      patchAppointment(appt._id, { status: "cancelled" });
+      toast.success(data.message || "Appointment cancelled successfully");
+      setToCancel(null);
+    });
   };
 
-  const sendReminder = async (bookingId) => {
-    try {
-      const res = await fetch(`${BASE_URL}/bookings/notify/${bookingId}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      const data = await res.json();
-      if (res.ok) {
-        toast.success("Reminder sent successfully");
-      } else {
-        toast.error(data.message || "Failed to send reminder");
-      }
-    } catch (err) {
-      toast.error("Error sending reminder");
-    }
-  };
+  const openNote = async (appt) => {
+    setNoteBooking(appt);
+    setNoteData(EMPTY_NOTE);
 
-  const openNoteModal = async (bookingId) => {
-    const booking = appointments.find((appt) => appt._id === bookingId);
-    setSelectedBooking(booking);
-
-    if (booking.noteId) {
+    if (appt.noteId && appt.user?._id) {
       try {
-        const res = await fetch(`${BASE_URL}/medical-notes/patient/${booking.user._id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await res.json();
-        if (res.ok) {
-          const note = data.data.find((n) => n._id === booking.noteId);
-          if (note) {
-            setNoteData({
-              diagnosis: note.diagnosis || "",
-              treatment: note.treatment || "",
-              notes: note.notes || "",
-            });
-          }
-        } else {
-          toast.error("Failed to fetch existing note");
+        const data = await request(`${BASE_URL}/medical-notes/patient/${appt.user._id}`, "GET");
+        const note = data.data.find((n) => n._id === appt.noteId);
+        if (note) {
+          setNoteData({
+            diagnosis: note.diagnosis || "",
+            treatment: note.treatment || "",
+            notes: note.notes || "",
+          });
         }
-      } catch (err) {
+      } catch {
         toast.error("Error fetching existing note");
       }
-    } else {
-      setNoteData({ diagnosis: "", treatment: "", notes: "" });
     }
-    setShowNoteModal(true);
   };
 
-  const saveMedicalNote = async (e) => {
+  const saveNote = async (e) => {
     e.preventDefault();
+    const isEdit = Boolean(noteBooking.noteId);
+    setSavingNote(true);
     try {
-      const url = selectedBooking.noteId
-        ? `${BASE_URL}/medical-notes/${selectedBooking.noteId}`
-        : `${BASE_URL}/medical-notes`;
-      const method = selectedBooking.noteId ? "PUT" : "POST";
-
-      const res = await fetch(url, {
-        method,
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          bookingId: selectedBooking._id,
-          diagnosis: noteData.diagnosis,
-          treatment: noteData.treatment,
-          notes: noteData.notes,
-        }),
-      });
-      const data = await res.json();
-
-      if (res.ok) {
-        toast.success(data.message);
-        setShowNoteModal(false);
-        setNoteData({ diagnosis: "", treatment: "", notes: "" });
-        if (!selectedBooking.noteId) {
-          setAppointments((prev) =>
-            prev.map((appt) =>
-              appt._id === selectedBooking._id ? { ...appt, noteId: data.data._id, note: data.data } : appt
-            )
-          );
-        } else {
-          setAppointments((prev) =>
-            prev.map((appt) =>
-              appt._id === selectedBooking._id ? { ...appt, note: data.data } : appt
-            )
-          );
-        }
-      } else {
-        toast.error(data.message || "Failed to save medical note");
-      }
+      const data = await request(
+        isEdit
+          ? `${BASE_URL}/medical-notes/${noteBooking.noteId}`
+          : `${BASE_URL}/medical-notes`,
+        isEdit ? "PUT" : "POST",
+        { bookingId: noteBooking._id, ...noteData }
+      );
+      toast.success(data.message || "Note saved");
+      patchAppointment(
+        noteBooking._id,
+        isEdit ? { note: data.data } : { noteId: data.data._id, note: data.data }
+      );
+      setNoteBooking(null);
+      setNoteData(EMPTY_NOTE);
     } catch (err) {
-      toast.error("Error saving medical note: " + err.message);
+      toast.error(err.message || "Failed to save medical note");
+    } finally {
+      setSavingNote(false);
     }
   };
+
+  const counts = useMemo(
+    () =>
+      FILTERS.reduce(
+        (acc, f) => ({ ...acc, [f.key]: appointments.filter((a) => a.status === f.key).length }),
+        {}
+      ),
+    [appointments]
+  );
+
+  const visible = useMemo(() => {
+    const time = (a) => new Date(a.appointmentDate).getTime() || 0;
+    const list = appointments.filter((a) => a.status === filter);
+    return list.sort((a, b) => (filter === "pending" ? time(a) - time(b) : time(b) - time(a)));
+  }, [appointments, filter]);
+
+  const lastUpdated = appointments
+    .map((a) => new Date(a.updatedAt).getTime())
+    .filter(Number.isFinite);
 
   return (
-    <div className="p-4 md:p-8 bg-gradient-to-br from-gray-100 to-gray-200 min-h-screen">
-      <h2 className="text-4xl font-bold text-gray-900 mb-6 border-b-2 border-indigo-200 pb-3">
-        Appointments Management
-      </h2>
-      {appointments.length > 0 ? (
-        <div className="space-y-6">
-          {appointments.map((appointment) => {
-            const appointmentDate = new Date(appointment.appointmentDate);
-            const now = new Date();
-            const canJoin = now >= appointmentDate && appointment.status === "pending";
+    <div>
+      <PanelHeader
+        title="Appointments"
+        description="Your consultations, from upcoming to completed."
+      />
+
+      <div className="mb-6 flex gap-6 border-b border-line" role="tablist">
+        {FILTERS.map((f) => (
+          <button
+            key={f.key}
+            type="button"
+            role="tab"
+            aria-selected={filter === f.key}
+            onClick={() => setFilter(f.key)}
+            className={`-mb-px border-b-2 pb-3 text-[15px] font-semibold transition-colors ${
+              filter === f.key
+                ? "border-coral text-headingColor"
+                : "border-transparent text-textColor hover:text-primaryColor"
+            }`}
+          >
+            {f.label}{" "}
+            <span className="ml-1 rounded-full bg-paper px-2 py-0.5 text-[12px]">{counts[f.key]}</span>
+          </button>
+        ))}
+      </div>
+
+      {visible.length === 0 ? (
+        <EmptyState
+          icon={CalendarDays}
+          title={`No ${filter} appointments`}
+          text={
+            filter === "pending"
+              ? "New bookings from patients will appear here."
+              : "Nothing to show in this list."
+          }
+        />
+      ) : (
+        <div className="space-y-4">
+          {visible.map((appt) => {
+            const date = new Date(appt.appointmentDate);
+            const valid = !Number.isNaN(date.getTime());
+            const timeReached = valid && Date.now() >= date.getTime() - JOIN_WINDOW_MS;
+            const pastStart = valid && Date.now() >= date.getTime();
+            const patient = appt.user;
+            const busy = busyId === appt._id;
+
             return (
-              appointment.status !== "cancelled" && (
-                <div
-                  key={appointment._id}
-                  className="bg-white border border-indigo-200 rounded-2xl shadow-lg p-4 md:p-6 flex flex-col md:flex-row md:items-center justify-between hover:shadow-xl hover:bg-gray-50 transition-all duration-300"
-                >
-                  <div className="flex items-start gap-4">
-                    {appointment.user?.photo && (
-                      <img
-                        src={appointment.user.photo}
-                        alt={appointment.user.name}
-                        className="w-12 h-12 rounded-full object-cover border-2 border-indigo-100 mt-1"
-                      />
-                    )}
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-xl font-bold text-indigo-900">
-                          {appointment.user?.name || "N/A"}
-                        </h3>
-                      </div>
-                      <p className="text-sm text-gray-600 flex items-center gap-2">
-                        <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        <span><strong>Date:</strong> {new Date(appointment.appointmentDate).toLocaleDateString()}</span>
-                      </p>
-                      <p className="text-sm text-gray-600 flex items-center gap-2">
-                        <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span><strong>Time:</strong> {new Date(appointment.appointmentDate).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })}</span>
-                      </p>
-                      <button
-                        onClick={() => navigate(`/doctors/medical-folder/${appointment.user._id}`)}
-                        className="mt-2 text-sm bg-teal-600 hover:bg-teal-700 text-white px-3 py-1 rounded-lg transition duration-200 transform hover:scale-105"
-                      >
-                        View Medical Folder
-                      </button>
-                    </div>
-                  </div>
-                  <div className="mt-4 md:mt-0 flex flex-col items-start md:items-end gap-2">
-                    <span
-                      className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        appointment.status === "pending"
-                          ? "bg-yellow-100 text-yellow-700"
-                          : "bg-green-100 text-green-700"
-                      }`}
-                    >
-                      {appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
+              <article
+                key={appt._id}
+                className="flex flex-col gap-5 rounded-[14px] border border-line bg-white p-5 lg:flex-row lg:items-center"
+              >
+                <div className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-[10px] bg-mint text-primaryColor">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.12em]">
+                    {valid ? date.toLocaleString("en-US", { month: "short" }) : "N/A"}
+                  </span>
+                  <span className="font-heading text-[26px] font-semibold leading-none">
+                    {valid ? date.getDate() : "-"}
+                  </span>
+                </div>
+
+                <div className="flex min-w-0 flex-1 items-center gap-4">
+                  {patient?.photo ? (
+                    <img
+                      src={patient.photo}
+                      alt={patient.name}
+                      className="h-12 w-12 shrink-0 rounded-full border border-line object-cover"
+                    />
+                  ) : (
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-paper font-heading text-[18px] text-primaryColor">
+                      {(patient?.name || "P").charAt(0).toUpperCase()}
                     </span>
-                    <div className="flex gap-2 mt-2">
-                      {appointment.status === "pending" && (
-                        <>
-                          {canJoin && (
-                            <button
-                              onClick={() => joinConsultation(appointment._id)}
-                              className="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-200 transform hover:scale-105 text-sm"
-                            >
-                              Join
-                            </button>
-                          )}
-                          <button
-                            onClick={() => sendReminder(appointment._id)}
-                            className="bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition duration-200 transform hover:scale-105 text-sm"
-                          >
-                            Remind
-                          </button>
-                          <button
-                            onClick={() => cancelAppointment(appointment._id)}
-                            className="bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition duration-200 transform hover:scale-105 text-sm"
-                          >
-                            Cancel
-                          </button>
-                        </>
-                      )}
-                      {appointment.status === "completed" && (
-                        <button
-                          onClick={() => openNoteModal(appointment._id)}
-                          className="bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition duration-200 transform hover:scale-105 text-sm"
-                        >
-                          {appointment.noteId ? "Edit Medical Note" : "Add Medical Note"}
-                        </button>
-                      )}
-                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="truncate font-heading text-[20px] font-semibold text-headingColor">
+                      {patient?.name || "Unknown patient"}
+                    </p>
+                    <p className="text-[14px] text-textColor">
+                      {fmtDate(appt.appointmentDate)}, {fmtTime(appt.appointmentDate)}
+                    </p>
                   </div>
                 </div>
-              )
+
+                <div className="flex flex-col items-start gap-3 lg:items-end">
+                  <StatusBadge status={appt.status} />
+                  <div className="flex flex-wrap items-center gap-2">
+                    {patient?._id && (
+                      <button
+                        type="button"
+                        className={btnSecondary}
+                        onClick={() => navigate(`/doctors/medical-folder/${patient._id}`)}
+                      >
+                        <FolderOpen className="h-4 w-4" /> Medical folder
+                      </button>
+                    )}
+
+                    {appt.status === "pending" && (
+                      <>
+                        {timeReached && (
+                          <button
+                            type="button"
+                            className={btnPrimary}
+                            onClick={() => navigate(`/consultation/${appt._id}`)}
+                          >
+                            <Video className="h-4 w-4" /> Join
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className={btnSecondary}
+                          disabled={busy}
+                          onClick={() => sendReminder(appt)}
+                        >
+                          <Bell className="h-4 w-4" /> Remind
+                        </button>
+                        {pastStart && (
+                          <button
+                            type="button"
+                            className={btnSecondary}
+                            disabled={busy}
+                            onClick={() => markCompleted(appt)}
+                          >
+                            <Check className="h-4 w-4" /> Mark completed
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="rounded-[8px] border border-red-200 bg-white px-4 py-2 text-[14px] font-semibold text-red-700 transition-colors hover:bg-red-50 disabled:opacity-50"
+                          disabled={busy}
+                          onClick={() => setToCancel(appt)}
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    )}
+
+                    {appt.status === "completed" && (
+                      <button type="button" className={btnPrimary} onClick={() => openNote(appt)}>
+                        <FileText className="h-4 w-4" />
+                        {appt.noteId ? "Edit medical note" : "Add medical note"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </article>
             );
           })}
-          {appointments.length > 0 && (
-            <p className="text-xs text-gray-400 mt-2">
-              Last Updated:{" "}
-              {new Date(
-                Math.max(...appointments.map((a) => new Date(a.updatedAt)))
-              ).toLocaleDateString()}
-            </p>
-          )}
         </div>
-      ) : (
-        <h2 className="mt-10 text-center text-gray-800 text-2xl font-semibold">
-          No appointments available.
-        </h2>
       )}
 
-      {showNoteModal && selectedBooking && (
-        <div className="fixed inset-0 bg-gray-900 bg-opacity-60 flex items-center justify-center z-50 transition-opacity duration-300">
-          <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto transform transition-all duration-300 scale-100">
-            <div className="flex items-center gap-3 bg-indigo-50 p-4 rounded-t-2xl border-b-2 border-indigo-200">
-              <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <h3 className="text-2xl font-bold text-gray-900">
-                {selectedBooking.noteId ? "Edit" : "Add"} Medical Note for {selectedBooking.user?.name}
-              </h3>
+      {lastUpdated.length > 0 && (
+        <p className="mt-6 text-[12px] text-textColor">
+          Last updated {fmtDate(Math.max(...lastUpdated))}
+        </p>
+      )}
+
+      {toCancel && (
+        <Modal
+          title="Cancel this appointment?"
+          onClose={() => busyId === null && setToCancel(null)}
+          footer={
+            <>
+              <button
+                type="button"
+                className={btnSecondary}
+                disabled={busyId !== null}
+                onClick={() => setToCancel(null)}
+              >
+                Keep appointment
+              </button>
+              <button
+                type="button"
+                disabled={busyId !== null}
+                onClick={confirmCancel}
+                className="rounded-[8px] bg-red-700 px-4 py-2 text-[14px] font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+              >
+                {busyId !== null ? "Cancelling..." : "Yes, cancel"}
+              </button>
+            </>
+          }
+        >
+          <p className="text-[15px] leading-7 text-textColor">
+            The appointment with{" "}
+            <strong className="text-headingColor">{toCancel.user?.name || "this patient"}</strong>{" "}
+            on {fmtDate(toCancel.appointmentDate)} at {fmtTime(toCancel.appointmentDate)} will be
+            cancelled, and the patient will be refunded automatically.
+          </p>
+        </Modal>
+      )}
+
+      {noteBooking && (
+        <Modal
+          title={`${noteBooking.noteId ? "Edit" : "Add"} medical note for ${
+            noteBooking.user?.name || "patient"
+          }`}
+          onClose={() => !savingNote && setNoteBooking(null)}
+          footer={
+            <>
+              <button
+                type="button"
+                className={btnSecondary}
+                disabled={savingNote}
+                onClick={() => setNoteBooking(null)}
+              >
+                Cancel
+              </button>
+              <button type="submit" form="note-form" className={btnPrimary} disabled={savingNote}>
+                {savingNote ? "Saving..." : "Save note"}
+              </button>
+            </>
+          }
+        >
+          <form id="note-form" onSubmit={saveNote} className="space-y-4">
+            <div>
+              <label htmlFor="diagnosis" className={labelClass}>Diagnosis</label>
+              <input
+                id="diagnosis"
+                type="text"
+                value={noteData.diagnosis}
+                onChange={(e) => setNoteData({ ...noteData, diagnosis: e.target.value })}
+                placeholder="e.g. Flu"
+                className={inputClass}
+                required
+              />
             </div>
-            <div className="p-4">
-              <form onSubmit={saveMedicalNote} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Diagnosis</label>
-                  <input
-                    type="text"
-                    value={noteData.diagnosis}
-                    onChange={(e) => setNoteData({ ...noteData, diagnosis: e.target.value })}
-                    placeholder="Enter diagnosis (e.g., Flu)"
-                    className="mt-1 p-3 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-200"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Treatment</label>
-                  <input
-                    type="text"
-                    value={noteData.treatment}
-                    onChange={(e) => setNoteData({ ...noteData, treatment: e.target.value })}
-                    placeholder="Enter treatment (e.g., Rest, Hydration)"
-                    className="mt-1 p-3 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-200"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Additional Notes</label>
-                  <textarea
-                    value={noteData.notes}
-                    onChange={(e) => setNoteData({ ...noteData, notes: e.target.value })}
-                    placeholder="Any additional notes (optional)"
-                    className="mt-1 p-3 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 h-32 transition duration-200 resize-none"
-                  />
-                </div>
-                <div className="flex justify-end gap-3 mt-4">
-                  <button
-                    type="button"
-                    onClick={() => setShowNoteModal(false)}
-                    className="bg-gray-600 text-white px-5 py-2 rounded-lg hover:bg-gray-700 transition duration-200 transform hover:scale-105"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="bg-indigo-600 text-white px-5 py-2 rounded-lg hover:bg-indigo-700 transition duration-200 transform hover:scale-105"
-                  >
-                    Save Note
-                  </button>
-                </div>
-              </form>
+            <div>
+              <label htmlFor="treatment" className={labelClass}>Treatment</label>
+              <input
+                id="treatment"
+                type="text"
+                value={noteData.treatment}
+                onChange={(e) => setNoteData({ ...noteData, treatment: e.target.value })}
+                placeholder="e.g. Rest, hydration"
+                className={inputClass}
+                required
+              />
             </div>
-          </div>
-        </div>
+            <div>
+              <label htmlFor="notes" className={labelClass}>Additional notes (optional)</label>
+              <textarea
+                id="notes"
+                value={noteData.notes}
+                onChange={(e) => setNoteData({ ...noteData, notes: e.target.value })}
+                className={`${inputClass} h-32 resize-none`}
+              />
+            </div>
+          </form>
+        </Modal>
       )}
     </div>
   );

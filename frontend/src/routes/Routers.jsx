@@ -35,7 +35,6 @@ const Routers = () => {
         <Route path="/contact" element={<Contact />} />
         <Route path="/services" element={<Services />} />
         <Route path="/checkout-session" element={<CheckoutSuccessPage />} />
-        <Route path="/consultation/:bookingId" element={<ConsultationRoom />} />
         <Route
           path="/users/profile/me"
           element={
@@ -64,6 +63,15 @@ const Routers = () => {
 
       {/* Admin Login Route (No Layout) */}
       <Route path="/admin/login" element={<AdminLogin />} />
+
+      <Route
+        path="/consultation/:bookingId"
+        element={
+          <ProtectedRoute allowedRoles={["patient", "doctor"]}>
+            <ConsultationRoom />
+          </ProtectedRoute>
+        }
+      />
 
       {/* Admin Routes without Header/Footer */}
       <Route

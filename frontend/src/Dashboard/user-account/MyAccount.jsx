@@ -1,17 +1,50 @@
+// Telemedecine\frontend\src\Dashboard\user-account\MyAccount.jsx
 import { useContext, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { CalendarCheck2, FolderHeart, UserCog, LogOut } from "lucide-react";
 import { authContext } from "./../../context/AuthContext";
 import MyBookings from "./MyBookings";
 import Profile from "./Profile";
 import MedicalFolder from "./MedicalFolder";
+import DeleteAccount from "./DeleteAccount";
 import useGetProfile from "../../hooks/useFetchData";
 import { BASE_URL } from "../../config";
 import Loading from "../../components/Loader/Loading";
-import Error from "../../components/Error/Error";
-import { CalendarCheck2, FolderHeart, UserCog } from "lucide-react";
+import ErrorMsg from "../../components/Error/Error";
+import { fmtDate } from "../../components/ui/dashboard.jsx";
+
+const TABS = [
+  { key: "appointments", label: "Appointments", icon: CalendarCheck2 },
+  { key: "folder", label: "Medical folder", icon: FolderHeart },
+  { key: "settings", label: "Profile settings", icon: UserCog },
+];
+
+const getAge = (dob) => {
+  if (!dob) return null;
+  const d = new Date(dob);
+  if (Number.isNaN(d.getTime())) return null;
+  return Math.floor((Date.now() - d.getTime()) / (365.25 * 24 * 3600 * 1000));
+};
+
+const Vital = ({ label, value }) => (
+  <div>
+    <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-textColor">
+      {label}
+    </dt>
+    <dd className="mt-0.5 text-[15px] font-semibold text-headingColor">
+      {value || "Not set"}
+    </dd>
+  </div>
+);
 
 const MyAccount = () => {
-  const { dispatch } = useContext(authContext);
-  const [tab, setTab] = useState("bookings");
+  const { user: authUser, token, role, dispatch, logout } = useContext(authContext);
+  const [params, setParams] = useSearchParams();
+  const [profile, setProfile] = useState(null);
+
+  const requested = params.get("tab");
+  const tab = TABS.some((t) => t.key === requested) ? requested : "appointments";
+  const setTab = (key) => setParams({ tab: key }, { replace: true });
 
   const {
     data: userData,
@@ -19,112 +52,169 @@ const MyAccount = () => {
     error,
   } = useGetProfile(`${BASE_URL}/users/profile/me`);
 
-  const handleLogout = () => {
-    if (dispatch) dispatch({ type: "LOGOUT" });
+  const current = profile || userData;
+
+  const handleSaved = (patch) => {
+    setProfile({ ...current, ...patch });
+    // keep the header avatar and name in sync
+    if (dispatch && authUser) {
+      dispatch({
+        type: "LOGIN_SUCCESS",
+        payload: { user: { ...authUser, ...patch }, token, role },
+      });
+    }
   };
 
+  if (loading && !error) {
+    return (
+      <section className="pb-20 pt-28">
+        <div className="container">
+          <Loading />
+        </div>
+      </section>
+    );
+  }
+
+  if (error || !current) {
+    return (
+      <section className="pb-20 pt-28">
+        <div className="container">
+          <ErrorMsg errMessage={error || "Could not load your account."} />
+        </div>
+      </section>
+    );
+  }
+
+  const conditions = current.conditions || current.diseases || [];
+  const age = getAge(current.dateOfBirth);
+  const firstName = current.name?.split(" ")[0] || "there";
+  const profileIncomplete = !current.bloodType || !current.dateOfBirth;
+
   return (
-    <section className="max-w-7xl mx-auto px-4 py-10 mt-6">
-      {loading && !error && <Loading />}
-      {error && !loading && <Error errMessage={error} />}
-      {!loading && !error && (
-        <div className="grid md:grid-cols-4 gap-8">
-          {/* LEFT SIDE - PROFILE CARD */}
-          <div className="bg-white p-6 rounded-2xl shadow border">
-            <div className="flex flex-col items-center text-center">
-              <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-indigo-200 shadow-sm">
-                <img
-                  src={userData.photo}
-                  alt="User"
-                  className="w-full h-full object-cover"
-                />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-800 mt-4">{userData.name}</h3>
-              <p className="text-sm text-gray-500">{userData.email}</p>
+    <section className="pb-20 pt-28">
+      <div className="container">
+        <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-primaryColor">
+          My account
+        </p>
+        <h1 className="mt-2 font-heading text-[36px] font-semibold leading-tight sm:text-[44px]">
+          Hello, {firstName}
+        </h1>
+        <p className="mt-2 text-[16px] text-textColor">
+          Manage your appointments, medical folder and personal details.
+        </p>
 
-              <div className="mt-4 text-sm text-gray-600 space-y-1">
-                <p>
-                  <span className="text-indigo-600 font-medium">Blood Type:</span> {userData.bloodType}
-                </p>
-                {userData.dateOfBirth && (
-                  <p>
-                    <span className="text-indigo-600 font-medium">DOB:</span>{" "}
-                    {new Date(userData.dateOfBirth).toLocaleDateString()}
-                  </p>
+        <div className="mt-10 grid gap-8 lg:grid-cols-12">
+          {/* sidebar */}
+          <aside className="lg:col-span-4 xl:col-span-3">
+            <div className="space-y-4 lg:sticky lg:top-24">
+              <div className="rounded-[14px] border border-line bg-white p-6">
+                <div className="flex items-center gap-4">
+                  {current.photo ? (
+                    <img
+                      src={current.photo}
+                      alt="My profile"
+                      className="h-16 w-16 shrink-0 rounded-full border border-line object-cover"
+                    />
+                  ) : (
+                    <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-primaryColor font-heading text-[26px] text-white">
+                      {(current.name || "U").charAt(0).toUpperCase()}
+                    </span>
+                  )}
+                  <div className="min-w-0">
+                    <p className="truncate font-heading text-[20px] font-semibold text-headingColor">
+                      {current.name}
+                    </p>
+                    <p className="truncate text-[14px] text-textColor">{current.email}</p>
+                  </div>
+                </div>
+
+                <dl className="mt-6 grid grid-cols-2 gap-4 border-t border-line pt-5">
+                  <Vital label="Blood type" value={current.bloodType} />
+                  <Vital label="Age" value={age !== null ? `${age} years` : null} />
+                  {current.dateOfBirth && (
+                    <div className="col-span-2">
+                      <Vital label="Date of birth" value={fmtDate(current.dateOfBirth)} />
+                    </div>
+                  )}
+                </dl>
+
+                {conditions.length > 0 && (
+                  <div className="mt-5 border-t border-line pt-5">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-textColor">
+                      Conditions
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {conditions.map((c) => (
+                        <span
+                          key={c}
+                          className="rounded-full border border-line bg-paper px-3 py-1 text-[13px] text-headingColor"
+                        >
+                          {c}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
                 )}
-                {(userData.conditions || userData.diseases)?.length > 0 && (
-                  <p>
-                    <span className="text-indigo-600 font-medium">Conditions:</span>{" "}
-                    {(userData.conditions || userData.diseases).join(", ")}
-                  </p>
+
+                {profileIncomplete && (
+                  <button
+                    type="button"
+                    onClick={() => setTab("settings")}
+                    className="mt-5 w-full rounded-[8px] bg-mint px-4 py-3 text-left text-[13px] leading-5 text-primaryColor transition-colors hover:bg-line"
+                  >
+                    <span className="font-semibold">Complete your profile.</span>{" "}
+                    Add your blood type and date of birth so doctors see them.
+                  </button>
                 )}
               </div>
 
-              <div className="mt-6 w-full space-y-3">
+              <nav
+                aria-label="Account sections"
+                className="flex gap-1 overflow-x-auto rounded-[14px] border border-line bg-white p-2 lg:flex-col"
+              >
+                {TABS.map(({ key, label, icon: Icon }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setTab(key)}
+                    aria-current={tab === key ? "page" : undefined}
+                    className={`flex shrink-0 items-center gap-3 rounded-[8px] px-4 py-3 text-[15px] font-semibold transition-colors ${
+                      tab === key
+                        ? "bg-primaryColor text-white"
+                        : "text-textColor hover:bg-paper hover:text-headingColor"
+                    }`}
+                  >
+                    <Icon className="h-5 w-5" />
+                    {label}
+                  </button>
+                ))}
                 <button
-                  onClick={handleLogout}
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg transition"
+                  type="button"
+                  onClick={logout}
+                  className="flex shrink-0 items-center gap-3 rounded-[8px] px-4 py-3 text-[15px] font-semibold text-textColor transition-colors hover:bg-paper hover:text-red-700 lg:mt-1 lg:border-t lg:border-line"
                 >
-                  Logout
+                  <LogOut className="h-5 w-5" />
+                  Log out
                 </button>
-                <button className="w-full bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg transition">
-                  Delete Account
-                </button>
-              </div>
+              </nav>
             </div>
-          </div>
+          </aside>
 
-          {/* RIGHT SIDE - CONTENT */}
-          <div className="md:col-span-3 bg-white p-6 rounded-2xl shadow border">
-            {/* TABS */}
-            <div className="flex flex-wrap gap-3 mb-6 border-b border-gray-200 pb-4">
-              <TabButton
-                label="My Appointments"
-                icon={<CalendarCheck2 className="w-4 h-4 mr-2" />}
-                isActive={tab === "bookings"}
-                onClick={() => setTab("bookings")}
-              />
-              <TabButton
-                label="Medical Folder"
-                icon={<FolderHeart className="w-4 h-4 mr-2" />}
-                isActive={tab === "medical-folder"}
-                onClick={() => setTab("medical-folder")}
-              />
-              
-              <TabButton
-                label="Profile Settings"
-                icon={<UserCog className="w-4 h-4 mr-2" />}
-                isActive={tab === "settings"}
-                onClick={() => setTab("settings")}
-              />
-            </div>
-
-            {/* CONTENT */}
-            <div>
-              {tab === "bookings" && <MyBookings />}
-              {tab === "settings" && userData && <Profile user={userData} />}
-              {tab === "medical-folder" && <MedicalFolder />}
-            </div>
+          {/* content */}
+          <div className="min-w-0 lg:col-span-8 xl:col-span-9">
+            {tab === "appointments" && <MyBookings />}
+            {tab === "folder" && <MedicalFolder />}
+            {tab === "settings" && (
+              <>
+                <Profile user={current} onSaved={handleSaved} />
+                <DeleteAccount user={current} />
+              </>
+            )}
           </div>
         </div>
-      )}
+      </div>
     </section>
   );
 };
-
-// Tab Button Component
-const TabButton = ({ label, icon, isActive, onClick }) => (
-  <button
-    onClick={onClick}
-    className={`flex items-center px-5 py-2 rounded-lg font-medium border transition-all ${
-      isActive
-        ? "bg-indigo-600 text-white border-indigo-600 shadow"
-        : "text-gray-700 border-gray-300 bg-white hover:bg-gray-100"
-    }`}
-  >
-    {icon}
-    {label}
-  </button>
-);
 
 export default MyAccount;

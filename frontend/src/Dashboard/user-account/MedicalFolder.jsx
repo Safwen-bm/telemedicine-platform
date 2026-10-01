@@ -1,256 +1,187 @@
-import { useState, useEffect } from "react";
-import useFetchData from "../../hooks/useFetchData";
-import { BASE_URL } from "../../config";
-import { useAuth } from "../../context/AuthContext.jsx";
-import Loading from "../../components/Loader/Loading";
-import { toast } from "react-toastify";
+// Telemedecine\frontend\src\Dashboard\user-account\MedicalFolder.jsx
 import {
   CalendarDays,
-  ClipboardList,
   Stethoscope,
   AlertCircle,
   Pill,
   FlaskConical,
 } from "lucide-react";
+import useFetchData from "../../hooks/useFetchData";
+import { BASE_URL } from "../../config";
+import { useAuth } from "../../context/AuthContext.jsx";
+import Loading from "../../components/Loader/Loading";
+import ErrorMsg from "../../components/Error/Error";
+import {
+  PanelHeader,
+  StatusBadge,
+  fmtDate,
+  fmtTime,
+} from "../../components/ui/dashboard.jsx";
+import { NoteCard } from "./MedicalNotes";
+
+const Section = ({ icon: Icon, title, count, children }) => (
+  <section className="rounded-[14px] border border-line bg-white">
+    <header className="flex items-center justify-between border-b border-line px-5 py-4">
+      <div className="flex items-center gap-3">
+        <span className="flex h-9 w-9 items-center justify-center rounded-[8px] bg-mint text-primaryColor">
+          <Icon className="h-5 w-5" />
+        </span>
+        <h3 className="font-heading text-[20px] font-semibold text-headingColor">
+          {title}
+        </h3>
+      </div>
+      {typeof count === "number" && (
+        <span className="rounded-full bg-paper px-2.5 py-0.5 text-[13px] font-semibold text-textColor">
+          {count}
+        </span>
+      )}
+    </header>
+    <div className="p-5">{children}</div>
+  </section>
+);
+
+const Empty = ({ children }) => (
+  <p className="text-[15px] italic text-textColor">{children}</p>
+);
+
+const Row = ({ children }) => (
+  <li className="flex flex-wrap items-start justify-between gap-2 border-b border-line py-3 first:pt-0 last:border-b-0 last:pb-0">
+    {children}
+  </li>
+);
 
 const MedicalFolder = () => {
   const { user, token } = useAuth();
-  const { data: medicalFolder, loading, error } = useFetchData(
-    `${BASE_URL}/medical-folder/${user._id}`,
+  const { data: folder, loading, error } = useFetchData(
+    `${BASE_URL}/medical-folder/${user?._id}`,
     token
   );
 
-  // Debug the structure of appointments and medical notes
-  useEffect(() => {
-    if (medicalFolder?.appointments) {
-      console.log("Appointments:", medicalFolder.appointments);
-    }
-    if (medicalFolder?.medicalNotes) {
-      console.log("Medical Notes:", medicalFolder.medicalNotes);
-    }
-  }, [medicalFolder]);
+  if (loading) return <Loading />;
+  if (error) return <ErrorMsg errMessage={error} />;
 
-  if (loading)
-    return (
-      <div className="flex justify-center items-center h-screen bg-gray-100">
-        <Loading />
-      </div>
-    );
-
-  if (error)
-    return (
-      <div className="flex justify-center items-center h-screen bg-gray-100">
-        <p className="text-lg text-red-600">Error: {error}</p>
-      </div>
-    );
+  const completed = (folder?.appointments || []).filter(
+    (a) => a.status === "completed"
+  );
+  const notes = folder?.medicalNotes || [];
+  const allergies = folder?.allergies || [];
+  const medications = folder?.medications || [];
+  const labResults = folder?.labResults || [];
 
   return (
-    <div className="p-6 md:p-10 bg-gray-100 min-h-screen">
-      <div className="max-w-5xl mx-auto">
-        <h1 className="text-4xl font-bold text-blue-800 mb-10 border-b-4 border-blue-200 pb-3">
-          🩺 Your Medical Folder
-        </h1>
+    <div>
+      <PanelHeader
+        title="Medical folder"
+        description={
+          folder?.updatedAt
+            ? `Last updated ${fmtDate(folder.updatedAt)}`
+            : "Everything your doctors have recorded about you, in one place."
+        }
+      />
 
-        <div className="space-y-10">
-          <SectionCard title="Past Appointments" icon={<CalendarDays className="text-blue-600 w-6 h-6" />}>
-            {medicalFolder?.appointments?.length > 0 ? (
-              <div className="space-y-4">
-                {medicalFolder.appointments
-                  .filter((appt) => appt.status === "completed")
-                  .map((appt) => (
-                    <InfoCard key={appt._id}>
-                      <div className="relative">
-                        <div className="absolute top-2 right-2">
-                          <span className="inline-block px-2 py-1 text-xs font-medium text-green-700 bg-green-100 rounded-full">
-                            {appt.status.charAt(0).toUpperCase() + appt.status.slice(1)}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-500">
-                          <span className="font-medium text-gray-900">Date:</span>{" "}
-                          {new Date(appt.appointmentDate).toLocaleDateString()}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          <span className="font-medium text-gray-900">Time:</span>{" "}
-                          {new Date(appt.appointmentDate).toLocaleTimeString("en-US", {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            hour12: true,
-                          })}
-                        </p>
-                        <p className="text-base font-semibold text-blue-600 mt-1">
-                          <span className="font-medium text-gray-900">Doctor:</span>{" "}
-                          Dr. {appt.doctor?.name || "Unknown"}, {appt.doctor?.specialization || "N/A"}
-                        </p>
-                      </div>
-                    </InfoCard>
-                  ))}
-              </div>
-            ) : (
-              <EmptyState message="No completed appointments recorded." />
-            )}
-            {medicalFolder?.appointments?.length > 0 && (
-              <p className="text-xs text-gray-400 mt-2">
-                Last Updated:{" "}
-                {new Date(
-                  Math.max(...medicalFolder.appointments.map((a) => new Date(a.updatedAt)))
-                ).toLocaleDateString()}
-              </p>
-            )}
-          </SectionCard>
-
-          <SectionCard title="Medical Notes" icon={<Stethoscope className="text-blue-600 w-6 h-6" />}>
-            {medicalFolder?.medicalNotes?.length > 0 ? (
-              <div className="space-y-4">
-                {medicalFolder.medicalNotes.map((note) => (
-                  <InfoCard key={note._id}>
-                    <p className="text-base font-semibold text-blue-600">
-                      <span className="font-medium text-gray-900">Doctor:</span>{" "}
-                      Dr. {note.doctor?.name || "Unknown"}, {note.doctor?.specialization || "N/A"}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      <span className="font-medium text-gray-900">Diagnosis:</span>{" "}
-                      {note.diagnosis || "N/A"}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      <span className="font-medium text-gray-900">Treatment:</span>{" "}
-                      {note.treatment || "N/A"}
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      <span className="font-medium text-gray-900">Notes:</span>{" "}
-                      {note.notes || "No additional notes"}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      <span className="font-medium text-gray-900">Date:</span>{" "}
-                      {new Date(note.createdAt).toLocaleDateString()}
-                    </p>
-                  </InfoCard>
+      <div className="space-y-6">
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Section icon={AlertCircle} title="Allergies" count={allergies.length}>
+            {allergies.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {allergies.map((a, i) => (
+                  <span
+                    key={`${a}-${i}`}
+                    className="rounded-full border border-red-200 bg-red-50 px-3 py-1 text-[14px] font-medium text-red-800"
+                  >
+                    {a}
+                  </span>
                 ))}
               </div>
             ) : (
-              <EmptyState message="No medical notes recorded." />
+              <Empty>No allergies recorded.</Empty>
             )}
-            {medicalFolder?.medicalNotes?.length > 0 && (
-              <p className="text-xs text-gray-400 mt-2">
-                Last Updated:{" "}
-                {new Date(
-                  Math.max(...medicalFolder.medicalNotes.map((n) => new Date(n.updatedAt)))
-                ).toLocaleDateString()}
-              </p>
-            )}
-          </SectionCard>
+          </Section>
 
-          <SectionCard title="Allergies" icon={<AlertCircle className="text-blue-600 w-6 h-6" />}>
-            {medicalFolder?.allergies?.length > 0 ? (
-              <div className="space-y-4">
-                {medicalFolder.allergies.map((allergy, index) => (
-                  <InfoCard key={index}>
-                    <p className="text-sm text-gray-600">{allergy}</p>
-                  </InfoCard>
+          <Section icon={Pill} title="Medications" count={medications.length}>
+            {medications.length > 0 ? (
+              <ul>
+                {medications.map((m, i) => (
+                  <Row key={m._id || `${m.name}-${i}`}>
+                    <div>
+                      <p className="text-[15px] font-semibold text-headingColor">{m.name}</p>
+                      <p className="text-[14px] text-textColor">{m.dosage || "Dosage not set"}</p>
+                    </div>
+                    <p className="text-[13px] text-textColor">
+                      {fmtDate(m.startDate)} to {m.endDate ? fmtDate(m.endDate) : "ongoing"}
+                    </p>
+                  </Row>
                 ))}
-              </div>
+              </ul>
             ) : (
-              <EmptyState message="No allergies recorded." />
+              <Empty>No medications recorded.</Empty>
             )}
-            {medicalFolder?.updatedAt && (
-              <p className="text-xs text-gray-400 mt-2">
-                Last Updated: {new Date(medicalFolder.updatedAt).toLocaleDateString()}
-              </p>
-            )}
-          </SectionCard>
-
-          <SectionCard title="Medications" icon={<Pill className="text-blue-600 w-6 h-6" />}>
-            {medicalFolder?.medications?.length > 0 ? (
-              <div className="space-y-4">
-                {medicalFolder.medications.map((med) => (
-                  <InfoCard key={med._id || med.name}>
-                    <p className="text-base font-semibold text-blue-600">
-                      <span className="font-medium text-gray-900">{med.name}</span>
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      <span className="font-medium text-gray-900">Dosage:</span> {med.dosage}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      <span className="font-medium text-gray-900">Start Date:</span>{" "}
-                      {new Date(med.startDate).toLocaleDateString()}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      <span className="font-medium text-gray-900">End Date:</span>{" "}
-                      {med.endDate ? new Date(med.endDate).toLocaleDateString() : "Ongoing"}
-                    </p>
-                  </InfoCard>
-                ))}
-              </div>
-            ) : (
-              <EmptyState message="No medications recorded." />
-            )}
-            {medicalFolder?.updatedAt && (
-              <p className="text-xs text-gray-400 mt-2">
-                Last Updated: {new Date(medicalFolder.updatedAt).toLocaleDateString()}
-              </p>
-            )}
-          </SectionCard>
-
-          <SectionCard title="Lab Results" icon={<FlaskConical className="text-blue-600 w-6 h-6" />}>
-            {medicalFolder?.labResults?.length > 0 ? (
-              <div className="space-y-4">
-                {medicalFolder.labResults.map((result) => (
-                  <InfoCard key={result._id || result.testName}>
-                    <p className="text-base font-semibold text-blue-600">
-                      <span className="font-medium text-gray-900">{result.testName}</span>
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      <span className="font-medium text-gray-900">Result:</span> {result.result}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      <span className="font-medium text-gray-900">Date:</span>{" "}
-                      {new Date(result.date).toLocaleDateString()}
-                    </p>
-                  </InfoCard>
-                ))}
-              </div>
-            ) : (
-              <EmptyState message="No lab results recorded." />
-            )}
-            {medicalFolder?.updatedAt && (
-              <p className="text-xs text-gray-400 mt-2">
-                Last Updated: {new Date(medicalFolder.updatedAt).toLocaleDateString()}
-              </p>
-            )}
-          </SectionCard>
+          </Section>
         </div>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Section icon={FlaskConical} title="Lab results" count={labResults.length}>
+            {labResults.length > 0 ? (
+              <ul>
+                {labResults.map((r, i) => (
+                  <Row key={r._id || `${r.testName}-${i}`}>
+                    <div>
+                      <p className="text-[15px] font-semibold text-headingColor">{r.testName}</p>
+                      <p className="text-[14px] text-textColor">{r.result}</p>
+                    </div>
+                    <p className="text-[13px] text-textColor">{fmtDate(r.date)}</p>
+                  </Row>
+                ))}
+              </ul>
+            ) : (
+              <Empty>No lab results recorded.</Empty>
+            )}
+          </Section>
+
+          <Section icon={CalendarDays} title="Past consultations" count={completed.length}>
+            {completed.length > 0 ? (
+              <ul>
+                {completed.map((a) => (
+                  <Row key={a._id}>
+                    <div>
+                      <p className="text-[15px] font-semibold text-headingColor">
+                        Dr. {a.doctor?.name || "Unknown"}
+                      </p>
+                      <p className="text-[14px] text-textColor">
+                        {a.doctor?.specialization || "N/A"}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[13px] text-textColor">
+                        {fmtDate(a.appointmentDate)}, {fmtTime(a.appointmentDate)}
+                      </p>
+                      <div className="mt-1">
+                        <StatusBadge status={a.status} />
+                      </div>
+                    </div>
+                  </Row>
+                ))}
+              </ul>
+            ) : (
+              <Empty>No completed consultations yet.</Empty>
+            )}
+          </Section>
+        </div>
+
+        <Section icon={Stethoscope} title="Doctor's notes" count={notes.length}>
+          {notes.length > 0 ? (
+            <div className="grid gap-4 lg:grid-cols-2">
+              {notes.map((note) => (
+                <NoteCard key={note._id} note={note} />
+              ))}
+            </div>
+          ) : (
+            <Empty>No medical notes recorded.</Empty>
+          )}
+        </Section>
       </div>
     </div>
   );
 };
-
-// Section container
-const SectionCard = ({ title, children, icon }) => (
-  <div className="bg-white shadow-lg rounded-xl p-4 md:p-6 border-l-4 border-blue-500">
-    <div className="flex items-center gap-3 mb-4">
-      {icon}
-      <h2 className="text-xl md:text-2xl font-semibold text-gray-800">{title}</h2>
-    </div>
-    {children}
-  </div>
-);
-
-// Card layout for entries
-const InfoCard = ({ children }) => (
-  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-all duration-200 hover:scale-[1.01]">
-    {children}
-  </div>
-);
-
-// Row inside a card (used as a fallback, but mostly replaced with custom layouts)
-const InfoRow = ({ label, value }) => (
-  <p className="text-sm text-gray-800 mb-1">
-    <span className="font-medium text-gray-900">{label}:</span> {value}
-  </p>
-);
-
-// Fallback message
-const EmptyState = ({ message }) => (
-  <p className="text-gray-500 italic">{message}</p>
-);
 
 export default MedicalFolder;

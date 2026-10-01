@@ -1,169 +1,215 @@
-// ConsultationRoom.jsx
-import { useState, useEffect, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+// Telemedecine\frontend\src\pages\Consultation\ConsultationRoom.jsx
+import { useEffect, useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { io } from "socket.io-client";
 import { Peer } from "peerjs";
-import { useAuth } from "../../context/AuthContext";
-import { BASE_URL } from "../../config";
 import { toast } from "react-toastify";
-import { FiMic, FiMicOff, FiVideo, FiVideoOff, FiPhoneMissed } from "react-icons/fi";
+import { FiMic, FiMicOff, FiVideo, FiVideoOff, FiPhoneMissed, FiFolder } from "react-icons/fi";
+import { useAuth } from "../../context/AuthContext";
+import { BASE_URL, SERVER_URL } from "../../config";
+
+// PeerJS signaling runs on the same server as the API (see backend index.js).
+const serverUrl = new URL(SERVER_URL);
+const PEER_OPTIONS = {
+  host: serverUrl.hostname,
+  port: Number(serverUrl.port) || (serverUrl.protocol === "https:" ? 443 : 80),
+  path: "/peerjs",
+  secure: serverUrl.protocol === "https:",
+};
+
+try {
+  const ice = JSON.parse(import.meta.env.VITE_ICE_SERVERS || "null");
+  if (Array.isArray(ice)) PEER_OPTIONS.config = { iceServers: ice };
+} catch {
+  // ignore a malformed value and use PeerJS defaults
+}
+
+const getLocalStream = async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    return { stream, video: true };
+  } catch {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+      return { stream, video: false };
+    } catch {
+      return { stream: null, video: false };
+    }
+  }
+};
+
+const STATUS_LABEL = {
+  connecting: "Connecting...",
+  waiting: "Waiting for the other participant",
+  connected: "Connected",
+};
 
 const ConsultationRoom = () => {
   const { bookingId } = useParams();
-  const { user, token } = useAuth();
+  const { user, token, role } = useAuth();
   const navigate = useNavigate();
 
-  const [room, setRoom] = useState(null);
+  const [status, setStatus] = useState("connecting");
+  const [errorMessage, setErrorMessage] = useState("");
+  const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
+  const [remoteUser, setRemoteUser] = useState({ id: null, name: "Participant" });
   const [isMicOn, setIsMicOn] = useState(true);
   const [isVideoOn, setIsVideoOn] = useState(true);
-  const [remoteUserName, setRemoteUserName] = useState("Participant");
-  const [remoteUserId, setRemoteUserId] = useState(null);
+
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
-  const peerInstance = useRef(null);
-  const socketInstance = useRef(null);
   const localStreamRef = useRef(null);
-
-  const fetchBookingAndJoinRoom = async (peerId) => {
-    try {
-      if (!peerId) throw new Error("Peer ID is not available");
-      console.log("Joining room with:", { bookingId, peerId, userId: user._id });
-      const res = await fetch(`${BASE_URL}/consultation-rooms/${bookingId}/join`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ bookingId, peerId }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to join room");
-      setRoom(data.data);
-
-      const otherParticipant = data.data.participants.find(
-        (p) => p.userId.toString() !== user._id.toString()
-      );
-      if (otherParticipant) {
-        setRemoteUserId(otherParticipant.userId);
-        const userRes = await fetch(`${BASE_URL}/users/${otherParticipant.userId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const userData = await userRes.json();
-        if (userData.success) setRemoteUserName(userData.data.name || "Participant");
-      }
-    } catch (error) {
-      console.error("Error:", error);
-      toast.error(error.message || "Failed to join room. Please try again.");
-      // Avoid redirecting to login; stay on page for retry
-    }
-  };
+  const callRef = useRef(null);
 
   useEffect(() => {
-    // Connect to the correct Socket.IO server URL (root path, not /api/v1)
-    const socket = io("http://localhost:5000", {
-      transports: ["websocket", "polling"],
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-    });
-    socketInstance.current = socket;
+    if (localVideoRef.current) localVideoRef.current.srcObject = localStream;
+  }, [localStream]);
 
-    socket.on("connect", () => {
-      console.log("Socket.IO connected:", socket.id);
-    });
+  useEffect(() => {
+    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remoteStream;
+  }, [remoteStream]);
 
-    socket.on("connect_error", (error) => {
-      console.error("Socket.IO connection error:", error);
-      toast.error("Connection error. Please check your network.");
-    });
+  useEffect(() => {
+    if (!user?._id || !token) return undefined;
 
-    socket.on("disconnect", (reason) => {
-      console.log("Socket.IO disconnected:", reason);
-    });
+    let cancelled = false;
+    let socket = null;
+    let peer = null;
+    let peerId = null;
 
-    // Configure PeerJS to connect to the local PeerServer
-    const peer = new Peer(undefined, {
-      host: "localhost",
-      port: 5001,
-      path: "/peerjs",
-    });
-    peerInstance.current = peer;
+    const headers = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
 
-    peer.on("open", (peerId) => {
-      console.log("PeerJS ID generated:", peerId);
-      fetchBookingAndJoinRoom(peerId);
-      socket.emit("join-consultation", { bookingId, userId: user._id });
-    });
+    const fail = (message) => {
+      if (cancelled) return;
+      setErrorMessage(message);
+      setStatus("error");
+    };
 
-    peer.on("error", (err) => {
-      console.error("PeerJS error:", err);
-      toast.error("Failed to initialize video call. Please try again.");
-    });
-
-    const setupMedia = async () => {
-      try {
-        let stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        localStreamRef.current = stream;
-        if (localVideoRef.current) localVideoRef.current.srcObject = stream;
-      } catch (err) {
-        console.warn("Video/audio failed, trying audio only:", err);
-        try {
-          let stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
-          localStreamRef.current = stream;
-          setIsVideoOn(false);
-          toast.warn("Video unavailable. Proceeding with audio only.");
-          if (localVideoRef.current) localVideoRef.current.srcObject = stream;
-        } catch (audioErr) {
-          console.warn("Audio failed, proceeding without media:", audioErr);
-          toast.warn("Camera and microphone unavailable. Joining without media.");
-        }
-      }
-
-      if (localStreamRef.current) {
-        socket.on("user-joined", ({ userId, socketId }) => {
-          const call = peer.call(socketId, localStreamRef.current);
-          call.on("stream", (remoteStream) => {
-            setRemoteStream(remoteStream);
-            if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remoteStream;
-          });
-        });
-
-        peer.on("call", (call) => {
-          call.answer(localStreamRef.current);
-          call.on("stream", (remoteStream) => {
-            setRemoteStream(remoteStream);
-            if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remoteStream;
-          });
-        });
+    const announce = () => {
+      if (socket?.connected && peerId) {
+        socket.emit("join-consultation", { bookingId, userId: user._id, peerId });
       }
     };
 
-    setupMedia();
+    const handleCall = (call) => {
+      callRef.current = call;
+      call.on("stream", (remote) => {
+        if (cancelled) return;
+        setRemoteStream(remote);
+        setStatus("connected");
+      });
+      call.on("close", () => {
+        if (cancelled) return;
+        setRemoteStream(null);
+        setStatus("waiting");
+      });
+      call.on("error", () => toast.error("The call was interrupted."));
+    };
 
-    socket.on("signal", ({ userId, signal }) => peer.signal(signal));
+    const init = async () => {
+      // 1. Is this user allowed here, and who is on the other side?
+      try {
+        const res = await fetch(`${BASE_URL}/bookings/${bookingId}`, { headers });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.message || "You do not have access to this consultation");
+        const other = role === "doctor" ? data.data.user : data.data.doctor;
+        if (!cancelled) setRemoteUser({ id: other?._id || null, name: other?.name || "Participant" });
+      } catch (err) {
+        fail(err.message);
+        return;
+      }
+      if (cancelled) return;
+
+      // 2. Camera and microphone BEFORE the peer exists, so an incoming call
+      //    can be answered the moment it arrives.
+      const { stream, video } = await getLocalStream();
+      if (cancelled) {
+        stream?.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      localStreamRef.current = stream;
+      setLocalStream(stream);
+      setIsVideoOn(video);
+      if (!stream) {
+        toast.warn("Camera and microphone are unavailable. The other person will not see or hear you.");
+      } else if (!video) {
+        toast.warn("Video unavailable. Continuing with audio only.");
+      }
+      const outgoing = stream || new MediaStream();
+
+      // 3. Realtime connection and PeerJS.
+      socket = io(SERVER_URL, {
+        auth: { token },
+        transports: ["websocket", "polling"],
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+      });
+      socket.on("connect", announce);
+      socket.on("connect_error", () => toast.error("Connection error. Please check your network."));
+      socket.on("user-joined", ({ peerId: remotePeerId }) => {
+        if (peer && remotePeerId) handleCall(peer.call(remotePeerId, outgoing));
+      });
+
+      peer = new Peer(undefined, PEER_OPTIONS);
+      peer.on("call", (call) => {
+        call.answer(outgoing);
+        handleCall(call);
+      });
+      peer.on("error", (err) => {
+        console.error("PeerJS error:", err);
+        toast.error("Video connection problem. Please refresh the page.");
+      });
+      peer.on("open", async (id) => {
+        peerId = id;
+        try {
+          const res = await fetch(`${BASE_URL}/consultation-rooms/${bookingId}/join`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ bookingId, peerId: id }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.message || "Failed to join the room");
+        } catch (err) {
+          fail(err.message);
+          return;
+        }
+        if (cancelled) return;
+        setStatus("waiting");
+        announce();
+      });
+    };
+
+    init();
 
     return () => {
-      socket.disconnect();
-      peer.destroy();
-      if (localStreamRef.current) localStreamRef.current.getTracks().forEach((track) => track.stop());
+      cancelled = true;
+      callRef.current?.close();
+      socket?.disconnect();
+      peer?.destroy();
+      localStreamRef.current?.getTracks().forEach((t) => t.stop());
+      localStreamRef.current = null;
     };
-  }, [bookingId, user._id, token, navigate]);
+  }, [bookingId, user?._id, token, role]);
 
   const toggleMic = () => {
-    if (localStreamRef.current) {
-      localStreamRef.current.getAudioTracks().forEach((track) => (track.enabled = !track.enabled));
-      setIsMicOn(!isMicOn);
-    }
+    const tracks = localStreamRef.current?.getAudioTracks() || [];
+    if (!tracks.length) return;
+    tracks.forEach((t) => (t.enabled = !t.enabled));
+    setIsMicOn((on) => !on);
   };
 
   const toggleVideo = () => {
-    if (localStreamRef.current) {
-      localStreamRef.current.getVideoTracks().forEach((track) => (track.enabled = !track.enabled));
-      setIsVideoOn(!isVideoOn);
-    }
+    const tracks = localStreamRef.current?.getVideoTracks() || [];
+    if (!tracks.length) return;
+    tracks.forEach((t) => (t.enabled = !t.enabled));
+    setIsVideoOn((on) => !on);
   };
+
+  const leave = () => navigate(role === "doctor" ? "/doctors/profile/me" : "/users/profile/me");
 
   const endCall = async () => {
     try {
@@ -172,79 +218,130 @@ const ConsultationRoom = () => {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ bookingId }),
       });
-
-      if (localStreamRef.current) localStreamRef.current.getTracks().forEach((track) => track.stop());
-      if (localVideoRef.current) localVideoRef.current.srcObject = null;
-      if (remoteVideoRef.current && remoteStream) remoteVideoRef.current.srcObject = null;
-
-      navigate("/doctors/profile/me");
     } catch (error) {
       console.error("Error ending call:", error);
-      toast.error("Failed to end call");
+      toast.error("Could not close the room on the server");
     }
+    leave();
   };
 
+  if (status === "error") {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-ink px-6 text-center text-paper">
+        <h1 className="font-heading text-[32px] font-semibold text-paper">Cannot open this consultation</h1>
+        <p className="mt-3 max-w-md text-[16px] text-paper/70">{errorMessage}</p>
+        <button
+          type="button"
+          onClick={leave}
+          className="mt-8 rounded-[8px] bg-coral px-6 py-3 font-semibold text-white hover:bg-paper hover:text-ink"
+        >
+          Back to my account
+        </button>
+      </div>
+    );
+  }
+
+  const controlBase =
+    "flex h-12 w-12 items-center justify-center rounded-full text-[20px] transition-colors disabled:cursor-not-allowed disabled:opacity-40";
+  const hasAudio = !!localStream?.getAudioTracks().length;
+  const hasVideo = !!localStream?.getVideoTracks().length;
+
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex flex-col">
-      <header className="bg-gray-800 p-4 flex justify-between items-center">
-        <h1 className="text-xl font-semibold">Consultation Room - Booking #{bookingId}</h1>
-        <div className="flex gap-4">
-          {remoteUserId && user.role === "doctor" && (
-            <button
-              onClick={() => navigate(`/doctors/medical-folder/${remoteUserId}`)}
-              className="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition duration-200"
-            >
-              View Medical Folder
-            </button>
-          )}
-          <button
-            onClick={endCall}
-            className="flex items-center gap-2 bg-red-600 px-4 py-2 rounded-lg hover:bg-red-700 transition duration-200"
-          >
-            <FiPhoneMissed /> End Call
-          </button>
+    <div className="flex h-screen flex-col bg-ink text-paper">
+      <header className="flex items-center justify-between gap-4 border-b border-paper/10 px-5 py-3">
+        <div className="min-w-0">
+          <p className="truncate font-heading text-[20px] font-semibold text-paper">
+            Consultation with {remoteUser.name}
+          </p>
+          <p className="text-[12px] text-paper/50">Booking #{bookingId.slice(-6)}</p>
         </div>
+        <span
+          className={`flex shrink-0 items-center gap-2 rounded-full px-3 py-1 text-[13px] font-semibold ${
+            status === "connected" ? "bg-emerald-500/20 text-emerald-300" : "bg-paper/10 text-paper/70"
+          }`}
+        >
+          <span
+            className={`h-2 w-2 rounded-full ${
+              status === "connected" ? "bg-emerald-400" : "animate-blink bg-yellowColor"
+            }`}
+          />
+          {STATUS_LABEL[status]}
+        </span>
       </header>
-      <main className="flex-grow p-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="relative bg-gray-800 rounded-xl overflow-hidden shadow-lg">
-          <video ref={localVideoRef} autoPlay muted className="w-full h-96 object-cover" />
-          <div className="absolute top-2 left-2 bg-gray-900 bg-opacity-75 text-white px-3 py-1 rounded-lg">
-            {user.name} (You)
-          </div>
-          {!localStreamRef.current && (
-            <div className="absolute inset-0 flex items-center justify-center text-gray-400">Camera Off</div>
-          )}
-        </div>
-        <div className="relative bg-gray-800 rounded-xl overflow-hidden shadow-lg">
-          <video ref={remoteVideoRef} autoPlay className="w-full h-96 object-cover" />
-          <div className="absolute top-2 left-2 bg-gray-900 bg-opacity-75 text-white px-3 py-1 rounded-lg">
-            {remoteUserName}
-          </div>
+
+      <main className="relative flex-1 overflow-hidden p-4">
+        <div className="relative h-full w-full overflow-hidden rounded-[14px] bg-black">
+          <video ref={remoteVideoRef} autoPlay playsInline className="h-full w-full object-cover" />
+
           {!remoteStream && (
-            <div className="absolute inset-0 flex items-center justify-center text-gray-400">
-              Waiting for participant...
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-paper/70">
+              <span className="flex h-20 w-20 items-center justify-center rounded-full bg-paper/10 font-heading text-[32px]">
+                {remoteUser.name.charAt(0).toUpperCase()}
+              </span>
+              <p className="text-[16px]">
+                {status === "connecting" ? "Setting up the room..." : `Waiting for ${remoteUser.name}...`}
+              </p>
             </div>
           )}
+
+          <div className="absolute bottom-4 right-4 h-36 w-52 overflow-hidden rounded-[10px] border border-paper/20 bg-ink shadow-panelShadow sm:h-44 sm:w-64">
+            <video
+              ref={localVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className="h-full w-full -scale-x-100 object-cover"
+            />
+            {(!hasVideo || !isVideoOn) && (
+              <div className="absolute inset-0 flex items-center justify-center bg-ink text-[13px] text-paper/60">
+                Camera off
+              </div>
+            )}
+            <span className="absolute left-2 top-2 rounded-md bg-ink/70 px-2 py-0.5 text-[12px]">
+              You
+            </span>
+          </div>
         </div>
       </main>
-      <footer className="bg-gray-800 p-4 flex justify-center gap-4">
+
+      <footer className="flex items-center justify-center gap-4 border-t border-paper/10 px-5 py-4">
         <button
+          type="button"
           onClick={toggleMic}
-          className={`flex items-center gap-2 px-6 py-2 rounded-lg transition duration-200 ${
-            isMicOn ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"
-          }`}
+          disabled={!hasAudio}
+          aria-label={isMicOn ? "Mute microphone" : "Unmute microphone"}
+          className={`${controlBase} ${isMicOn ? "bg-paper/10 hover:bg-paper/20" : "bg-coral"}`}
         >
-          {isMicOn ? <FiMicOff /> : <FiMic />}
-          {isMicOn ? "Mute" : "Unmute"}
+          {isMicOn ? <FiMic /> : <FiMicOff />}
         </button>
         <button
+          type="button"
           onClick={toggleVideo}
-          className={`flex items-center gap-2 px-6 py-2 rounded-lg transition duration-200 ${
-            isVideoOn ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"
-          }`}
+          disabled={!hasVideo}
+          aria-label={isVideoOn ? "Turn camera off" : "Turn camera on"}
+          className={`${controlBase} ${isVideoOn ? "bg-paper/10 hover:bg-paper/20" : "bg-coral"}`}
         >
-          {isVideoOn ? <FiVideoOff /> : <FiVideo />}
-          {isVideoOn ? "Video Off" : "Video On"}
+          {isVideoOn ? <FiVideo /> : <FiVideoOff />}
+        </button>
+
+        {remoteUser.id && role === "doctor" && (
+          <button
+            type="button"
+            onClick={() =>
+              window.open(`/doctors/medical-folder/${remoteUser.id}`, "_blank", "noopener")
+            }
+            className="flex h-12 items-center gap-2 rounded-full bg-paper/10 px-5 text-[14px] font-semibold hover:bg-paper/20"
+          >
+            <FiFolder /> Medical folder
+          </button>
+        )}
+
+        <button
+          type="button"
+          onClick={endCall}
+          className="flex h-12 items-center gap-2 rounded-full bg-red-600 px-6 text-[14px] font-semibold hover:bg-red-700"
+        >
+          <FiPhoneMissed /> End call
         </button>
       </footer>
     </div>

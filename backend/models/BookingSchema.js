@@ -24,16 +24,22 @@ const bookingSchema = new mongoose.Schema(
     },
     isPaid: {
       type: Boolean,
-      default: true,
+      default: false,
     },
+    // Set when Stripe confirms the payment. The unique index also prevents
+    // the same payment from creating two bookings.
+    stripeSessionId: { type: String, unique: true, sparse: true },
+    paymentIntentId: { type: String },
   },
   { timestamps: true }
 );
 
-// Remove or adjust the pre-find hook to avoid overriding custom population
 bookingSchema.pre(/^find/, function (next) {
-  this.populate("user");
-  this.populate({ path: "doctor", select: "name photo specialization averageRating totalRating experiences" });
+  this.populate({ path: "user", select: "-password" });
+  this.populate({
+    path: "doctor",
+    select: "name photo specialization averageRating totalRating experiences",
+  });
   next();
 });
 

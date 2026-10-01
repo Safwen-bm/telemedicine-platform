@@ -1,90 +1,111 @@
 import { useState } from "react";
+import { Link, useParams } from "react-router-dom";
 import { AiFillStar } from "react-icons/ai";
-import { useParams } from "react-router-dom";
 import { toast } from "react-toastify";
-import HashLoader from "react-spinners/HashLoader";
-import { BASE_URL, token } from "../../config";
+import { BASE_URL } from "../../config";
+import { useAuth } from "../../context/AuthContext.jsx";
+import { inputClass } from "../../components/ui/dashboard.jsx";
 
-const FeedbackForm = () => {
+const FeedbackForm = ({ onSubmitted }) => {
+  const { token } = useAuth();
+  const { id } = useParams();
   const [rating, setRating] = useState(0);
   const [hover, setHover] = useState(0);
   const [reviewText, setReviewText] = useState("");
   const [loading, setLoading] = useState(false);
-  const { id } = useParams();
+
+  if (!token) {
+    return (
+      <p className="rounded-[10px] border border-line bg-white p-5 text-[15px] text-textColor">
+        <Link to="/login" className="font-semibold text-primaryColor hover:underline">
+          Log in
+        </Link>{" "}
+        to share your experience with this doctor.
+      </p>
+    );
+  }
 
   const handleSubmitReview = async (e) => {
     e.preventDefault();
+
+    if (!rating || !reviewText.trim()) {
+      return toast.error("Please add a rating and a short comment");
+    }
+
     setLoading(true);
-
     try {
-      if (!rating || !reviewText) {
-        setLoading(false);
-        return toast.error("Please fill in all fields");
-      }
-
       const res = await fetch(`${BASE_URL}/doctors/${id}/reviews`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ rating, reviewText }),
+        body: JSON.stringify({ rating, reviewText: reviewText.trim() }),
       });
 
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.message);
-      setLoading(false);
-      toast.success(result.message);
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(result.message || "Could not submit your review");
+
+      toast.success(result.message || "Thank you for your feedback");
+      setRating(0);
+      setHover(0);
+      setReviewText("");
+      onSubmitted?.();
     } catch (err) {
-      setLoading(false);
       toast.error(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <form onClick={handleSubmitReview} className="space-y-6">
+    <form onSubmit={handleSubmitReview} className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold text-gray-900">Rate Your Experience</h3>
-        <div className="flex gap-2 mt-3">
-          {[...Array(5).keys()].map((_, index) => {
-            index += 1;
-            return (
-              <button
-                key={index}
-                type="button"
-                className={`${
-                  index <= ((rating && hover) || hover) ? "text-yellow-500" : "text-gray-400"
-                } bg-transparent border-none outline-none text-2xl cursor-pointer`}
-                onClick={() => setRating(index)}
-                onMouseEnter={() => setHover(index)}
-                onMouseLeave={() => setHover(rating)}
-                onDoubleClick={() => {
-                  setHover(0);
-                  setRating(0);
-                }}
-              >
-                <AiFillStar />
-              </button>
-            );
-          })}
+        <h3 className="font-heading text-[20px] font-semibold text-headingColor">
+          Rate your experience
+        </h3>
+        <div className="mt-3 flex gap-1" onMouseLeave={() => setHover(0)}>
+          {[1, 2, 3, 4, 5].map((value) => (
+            <button
+              key={value}
+              type="button"
+              aria-label={`${value} star${value > 1 ? "s" : ""}`}
+              aria-pressed={rating === value}
+              className={`text-[30px] transition-colors ${
+                value <= (hover || rating) ? "text-yellowColor" : "text-line"
+              }`}
+              onClick={() => setRating(value)}
+              onMouseEnter={() => setHover(value)}
+              onDoubleClick={() => {
+                setHover(0);
+                setRating(0);
+              }}
+            >
+              <AiFillStar />
+            </button>
+          ))}
         </div>
       </div>
 
       <div>
-        <h3 className="text-lg font-semibold text-gray-900">Share Your Feedback</h3>
+        <h3 className="font-heading text-[20px] font-semibold text-headingColor">
+          Share your feedback
+        </h3>
         <textarea
-          className="border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-600 w-full px-4 py-3 rounded-lg mt-3 text-gray-700"
+          className={`${inputClass} mt-3`}
           rows="5"
           placeholder="Write your feedback here..."
+          value={reviewText}
           onChange={(e) => setReviewText(e.target.value)}
-        ></textarea>
+        />
       </div>
 
       <button
         type="submit"
-        className="bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 transition-all duration-200 w-full"
+        disabled={loading}
+        className="w-full rounded-[8px] bg-primaryColor px-6 py-3 font-semibold text-white transition-colors hover:bg-ink disabled:opacity-50"
       >
-        {loading ? <HashLoader size={25} color="#fff" /> : "Submit Feedback"}
+        {loading ? "Submitting..." : "Submit feedback"}
       </button>
     </form>
   );
