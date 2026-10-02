@@ -8,7 +8,7 @@
   "author": "Safwen Ben Mabrouk",
   "description": "REST API, realtime signaling and payments for the Tabibi telemedicine platform",
   "engines": {
-    "node": ">=20"
+    "node": "22.x"
   },
   "scripts": {
     "start": "node index.js",
