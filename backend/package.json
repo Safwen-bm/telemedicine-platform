@@ -1,16 +1,20 @@
 {
   "name": "backend",
   "version": "1.0.0",
+  "private": true,
+  "license": "UNLICENSED",
   "type": "module",
   "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node index.js",
-    "start-dev": "nodemon index.js"
+  "author": "Safwen Ben Mabrouk",
+  "description": "REST API, realtime signaling and payments for the Tabibi telemedicine platform",
+  "engines": {
+    "node": ">=20"
   },
-  "author": "SafOne",
-  "license": "ISC",
-  "description": "",
+  "scripts": {
+    "start": "node index.js",
+    "start-dev": "nodemon index.js",
+    "create-admin": "node scripts/createAdmin.js"
+  },
   "dependencies": {
     "@sendgrid/mail": "^8.1.5",
     "bcryptjs": "^3.0.2",
@@ -19,14 +23,10 @@
     "dotenv": "^16.5.0",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
-    "mongodb": "^6.13.1",
     "mongoose": "^8.13.2",
-    "nodemailer": "^6.10.1",
     "peer": "^1.0.2",
-    "simple-peer": "^9.11.1",
     "socket.io": "^4.8.1",
-    "stripe": "^17.7.0",
-    "uuid": "^11.1.0"
+    "stripe": "^17.7.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.9"

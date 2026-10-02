@@ -26,7 +26,6 @@ const debug = (...args) => {
   if (!isProd) console.log(...args);
 };
 
-// Never print secret values, only which variables are missing.
 const required = ["MONGO_URL", "JWT_SECRET_KEY", "STRIPE_SECRET_KEY", "CLIENT_SITE_URL"];
 const missing = required.filter((key) => !process.env[key]);
 if (missing.length) {
@@ -55,13 +54,25 @@ const io = new Server(server, {
     methods: ["GET", "POST"],
     credentials: true,
   },
-  transports: ["websocket", "polling"], // top-level option, it was wrongly nested inside cors
+  transports: ["websocket", "polling"],
 });
+
+const upgradeListenersBefore = server.listeners("upgrade");
 
 app.use(
   "/peerjs",
   ExpressPeerServer(server, { debug: !isProd, corsOptions: { origin: allowedOrigins } })
 );
+
+const peerUpgradeListeners = server
+  .listeners("upgrade")
+  .filter((listener) => !upgradeListenersBefore.includes(listener));
+
+server.removeAllListeners("upgrade");
+server.on("upgrade", (req, socket, head) => {
+  const targets = req.url?.startsWith("/peerjs") ? peerUpgradeListeners : upgradeListenersBefore;
+  targets.forEach((listener) => listener.call(server, req, socket, head));
+});
 
 const port = process.env.PORT || 5000;
 
