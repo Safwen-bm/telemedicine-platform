@@ -9,7 +9,7 @@ import {
   getPendingDoctors,
   updateDoctorApproval,
 } from "../Controllers/doctorController.js";
-import { authenticate, restrict } from "../auth/verifyToken.js";
+import { authenticate, optionalAuthenticate, restrict } from "../auth/verifyToken.js";
 import reviewRouter from "./review.js";
 
 const router = express.Router();
@@ -62,7 +62,7 @@ router.post(
 );
 
 // Public route to get a single doctor by ID
-router.get("/:id", asyncHandler(getSingleDoctor));
+router.get("/:id", asyncHandler(optionalAuthenticate), asyncHandler(getSingleDoctor));
 
 // Doctor updates / deletes their own account
 router.put(

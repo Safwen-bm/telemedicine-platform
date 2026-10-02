@@ -1,188 +1,302 @@
-import { useContext, useEffect, useState } from "react";
-import { authContext } from "../../context/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useMemo, useState } from "react";
+import { Link, useOutletContext, useSearchParams } from "react-router-dom";
+import { Search, Stethoscope } from "lucide-react";
+import { toast } from "react-toastify";
+import useFetchData from "../../hooks/useFetchData";
+import { useAuth } from "../../context/AuthContext";
+import { BASE_URL } from "../../config";
+import Loader from "../../components/Loader/Loading";
+import ErrorMsg from "../../components/Error/Error";
+import {
+  PanelHeader,
+  EmptyState,
+  StatusBadge,
+  Modal,
+  inputClass,
+} from "../../components/ui/dashboard.jsx";
+
+const SPECIALIZATIONS = [
+  "surgery",
+  "cardiology",
+  "dermatology",
+  "endocrinology",
+  "gastroenterology",
+  "neurology",
+  "oncology",
+  "orthopedics",
+  "pediatrics",
+  "psychiatry",
+  "radiology",
+];
+
+const TABS = [
+  { key: "all", label: "All" },
+  { key: "pending", label: "Pending" },
+  { key: "approved", label: "Approved" },
+  { key: "cancelled", label: "Rejected" },
+];
+
+const STATUS_LABEL = { pending: "Pending", approved: "Approved", cancelled: "Rejected" };
+
+const smallBtn =
+  "rounded-[8px] px-4 py-2 text-[14px] font-semibold transition-colors disabled:opacity-50";
 
 const AdminDoctors = () => {
-  const { token } = useContext(authContext);
-  const navigate = useNavigate();
-  const [doctors, setDoctors] = useState([]);
-  const [filteredDoctors, setFilteredDoctors] = useState([]);
-  const [error, setError] = useState(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [specializationFilter, setSpecializationFilter] = useState("all");
+  const { token } = useAuth();
+  const { refreshPending } = useOutletContext() || {};
+  const [params, setParams] = useSearchParams();
+  const status = TABS.some((t) => t.key === params.get("status")) ? params.get("status") : "all";
 
-  const fetchDoctors = async () => {
-    try {
-      const res = await fetch("http://localhost:5000/api/v1/doctors/admin/doctors", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to fetch doctors");
-      if (data.success) {
-        setDoctors(data.data);
-        setFilteredDoctors(data.data);
-      }
-    } catch (err) {
-      setError(err.message);
-    }
-  };
+  const { data, loading, error, refetch } = useFetchData(`${BASE_URL}/doctors/admin/doctors`);
+  const [search, setSearch] = useState("");
+  const [specialization, setSpecialization] = useState("all");
+  const [busyId, setBusyId] = useState(null);
+  const [confirm, setConfirm] = useState(null); // { doctor, status }
 
-  const updateApproval = async (doctorId, status) => {
+  const all = Array.isArray(data) ? data : [];
+  const total = all.length;
+
+  const counts = useMemo(
+    () => ({
+      all: all.length,
+      pending: all.filter((d) => d.isApproved === "pending").length,
+      approved: all.filter((d) => d.isApproved === "approved").length,
+      cancelled: all.filter((d) => d.isApproved === "cancelled").length,
+    }),
+    [all]
+  );
+
+  const doctors = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return all
+      .filter((d) => status === "all" || d.isApproved === status)
+      .filter((d) => specialization === "all" || d.specialization === specialization)
+      .filter(
+        (d) => !q || d.name?.toLowerCase().includes(q) || d.email?.toLowerCase().includes(q)
+      )
+      .sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+  }, [all, status, specialization, search]);
+
+  const setApproval = async (doctor, newStatus) => {
+    setBusyId(doctor._id);
     try {
-      const res = await fetch("http://localhost:5000/api/v1/doctors/approve", {
+      const res = await fetch(`${BASE_URL}/doctors/approve`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ doctorId, status }),
+        body: JSON.stringify({ doctorId: doctor._id, status: newStatus }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to update approval");
-      if (data.success) {
-        setDoctors((prev) =>
-          prev.map((d) => (d._id === doctorId ? { ...d, isApproved: status } : d))
-        );
-        setFilteredDoctors((prev) =>
-          prev.map((d) => (d._id === doctorId ? { ...d, isApproved: status } : d))
-        );
-      }
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(result.message || "Failed to update approval");
+
+      toast.success(result.message || "Doctor updated");
+      setConfirm(null);
+      await refetch();
+      refreshPending?.();
     } catch (err) {
-      setError(err.message);
+      toast.error(err.message);
+    } finally {
+      setBusyId(null);
     }
   };
 
-  useEffect(() => {
-    fetchDoctors();
-  }, []);
-
-  useEffect(() => {
-    let filtered = doctors;
-    if (searchTerm) {
-      filtered = filtered.filter(
-        (doctor) =>
-          doctor.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          doctor.email?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-    if (specializationFilter !== "all") {
-      filtered = filtered.filter(
-        (doctor) => doctor.specialization === specializationFilter
-      );
-    }
-    setFilteredDoctors(filtered);
-  }, [searchTerm, specializationFilter, doctors]);
+  const ask = (doctor, newStatus) => setConfirm({ doctor, status: newStatus });
 
   return (
-    <div className="p-4 md:p-8 bg-gradient-to-br from-gray-100 to-gray-200 min-h-screen">
-      <h2 className="text-4xl font-bold text-gray-900 mb-6 border-b-2 border-indigo-200 pb-3">
-        Doctors Management
-      </h2>
-      {error && <p className="text-red-600 mb-4 text-lg">Error: {error}</p>}
-      <div className="mb-6 flex flex-col md:flex-row gap-4">
-        <input
-          type="text"
-          placeholder="Search by name or email..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-200 w-full md:w-1/2"
-        />
+    <div>
+      <PanelHeader title="Doctors" description="Review profiles and decide who patients can book." />
+
+      <div className="mb-6 flex gap-6 overflow-x-auto border-b border-line" role="tablist">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            role="tab"
+            aria-selected={status === t.key}
+            onClick={() => setParams(t.key === "all" ? {} : { status: t.key }, { replace: true })}
+            className={`-mb-px shrink-0 border-b-2 pb-3 text-[15px] font-semibold transition-colors ${
+              status === t.key
+                ? "border-coral text-headingColor"
+                : "border-transparent text-textColor hover:text-primaryColor"
+            }`}
+          >
+            {t.label}{" "}
+            <span className="ml-1 rounded-full bg-paper px-2 py-0.5 text-[12px]">{counts[t.key]}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="mb-6 flex flex-col gap-4 md:flex-row">
+        <div className="relative md:w-1/2">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-textColor" />
+          <input
+            type="search"
+            placeholder="Search by name or email"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className={`${inputClass} pl-12`}
+            aria-label="Search doctors"
+          />
+        </div>
         <select
-          value={specializationFilter}
-          onChange={(e) => setSpecializationFilter(e.target.value)}
-          className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-200 w-full md:w-1/4"
+          value={specialization}
+          onChange={(e) => setSpecialization(e.target.value)}
+          className={`${inputClass} capitalize md:w-64`}
+          aria-label="Filter by specialization"
         >
-          <option value="all">All Specializations</option>
-          <option value="surgery">Surgery</option>
-          <option value="cardiology">Cardiology</option>
-          <option value="dermatology">Dermatology</option>
-          <option value="endocrinology">Endocrinology</option>
-          <option value="gastroenterology">Gastroenterology</option>
-          <option value="neurology">Neurology</option>
-          <option value="oncology">Oncology</option>
-          <option value="orthopedics">Orthopedics</option>
-          <option value="pediatrics">Pediatrics</option>
-          <option value="psychiatry">Psychiatry</option>
-          <option value="radiology">Radiology</option>
+          <option value="all">All specializations</option>
+          {SPECIALIZATIONS.map((s) => (
+            <option key={s} value={s}>
+              {s.charAt(0).toUpperCase() + s.slice(1)}
+            </option>
+          ))}
         </select>
       </div>
-      {filteredDoctors.length > 0 ? (
-        <div className="space-y-6">
-          {filteredDoctors.map((doctor) => (
-            <div
-              key={doctor._id}
-              className="bg-white border border-indigo-200 rounded-2xl shadow-lg p-4 md:p-6 flex flex-col md:flex-row md:items-center justify-between hover:shadow-xl hover:bg-gray-50 transition-all duration-300"
-            >
-              <div className="flex items-start gap-4">
-                {doctor.photo && (
-                  <img
-                    src={doctor.photo}
-                    alt={doctor.name}
-                    className="w-12 h-12 rounded-full object-cover border-2 border-indigo-100 mt-1"
-                  />
-                )}
-                <div className="flex-1 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-xl font-bold text-indigo-900">
-                      Dr. {doctor.name || "N/A"}, {doctor.specialization || "N/A"}
-                    </h3>
-                    <span
-                      className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        doctor.isApproved === "pending"
-                          ? "bg-yellow-100 text-yellow-700"
-                          : doctor.isApproved === "approved"
-                          ? "bg-green-100 text-green-700"
-                          : "bg-red-100 text-red-700"
-                      }`}
-                    >
-                      {doctor.isApproved.charAt(0).toUpperCase() + doctor.isApproved.slice(1)}
-                    </span>
+
+      {loading && total === 0 && <Loader />}
+      {error && total === 0 && <ErrorMsg errMessage={error} />}
+
+      {!(loading && total === 0) && !(error && total === 0) && (
+        doctors.length > 0 ? (
+          <ul className="space-y-3">
+            {doctors.map((d) => {
+              const busy = busyId === d._id;
+              const incomplete = !d.specialization || !(Number(d.ticketPrice) > 0);
+              return (
+                <li
+                  key={d._id}
+                  className="flex flex-col gap-4 rounded-[14px] border border-line bg-white p-4 lg:flex-row lg:items-center"
+                >
+                  <div className="flex min-w-0 flex-1 items-center gap-4">
+                    {d.photo ? (
+                      <img
+                        src={d.photo}
+                        alt={d.name}
+                        className="h-14 w-14 shrink-0 rounded-full border border-line object-cover"
+                      />
+                    ) : (
+                      <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-paper font-heading text-[20px] text-primaryColor">
+                        {(d.name || "D").charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                    <div className="min-w-0">
+                      <p className="truncate font-heading text-[19px] font-semibold text-headingColor">
+                        {d.name || "Unnamed doctor"}
+                      </p>
+                      <p className="truncate text-[14px] capitalize text-textColor">
+                        {d.specialization || "Specialization not set"}
+                      </p>
+                      <p className="truncate text-[13px] text-textColor">
+                        {d.email}
+                        {Number(d.ticketPrice) > 0 && ` / $${d.ticketPrice}`}
+                        {Number(d.totalRating) > 0 && ` / ${Number(d.averageRating).toFixed(1)} stars`}
+                      </p>
+                      {incomplete && (
+                        <p className="mt-1 text-[12px] font-semibold text-coral">
+                          Incomplete profile: specialization or fee missing
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-sm text-gray-600 flex items-center gap-2">
-                    <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
-                    </svg>
-                    <span><strong>Email:</strong> {doctor.email || "N/A"}</span>
-                  </p>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => navigate(`/doctors/${doctor._id}`)}
-                      className="text-sm bg-teal-600 hover:bg-teal-700 text-white px-3 py-1 rounded-lg transition duration-200 transform hover:scale-105"
-                    >
-                      View Profile
-                    </button>
-                    {doctor.isApproved === "pending" && (
-                      <>
+
+                  <div className="flex flex-col items-start gap-3 lg:items-end">
+                    <StatusBadge status={d.isApproved} label={STATUS_LABEL[d.isApproved]} />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link
+                        to={`/doctors/${d._id}`}
+                        className={`${smallBtn} border border-line bg-white text-headingColor hover:border-primaryColor hover:text-primaryColor`}
+                      >
+                        View profile
+                      </Link>
+
+                      {(d.isApproved === "pending" || d.isApproved === "cancelled") && (
                         <button
-                          onClick={() => updateApproval(doctor._id, "approved")}
-                          className="text-sm bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-lg transition duration-200 transform hover:scale-105"
+                          type="button"
+                          disabled={busy}
+                          onClick={() => setApproval(d, "approved")}
+                          className={`${smallBtn} bg-primaryColor text-white hover:bg-ink`}
                         >
                           Approve
                         </button>
+                      )}
+                      {d.isApproved === "pending" && (
                         <button
-                          onClick={() => updateApproval(doctor._id, "cancelled")}
-                          className="text-sm bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-lg transition duration-200 transform hover:scale-105"
+                          type="button"
+                          disabled={busy}
+                          onClick={() => ask(d, "cancelled")}
+                          className={`${smallBtn} border border-red-200 bg-white text-red-700 hover:bg-red-50`}
                         >
                           Reject
                         </button>
-                      </>
-                    )}
+                      )}
+                      {d.isApproved === "approved" && (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => ask(d, "cancelled")}
+                          className={`${smallBtn} border border-red-200 bg-white text-red-700 hover:bg-red-50`}
+                        >
+                          Suspend
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </div>
-            </div>
-          ))}
-          <p className="text-xs text-gray-400 mt-2">
-            Last Updated:{" "}
-            {new Date(
-              Math.max(...doctors.map((d) => new Date(d.updatedAt)))
-            ).toLocaleDateString()}
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <EmptyState
+            icon={Stethoscope}
+            title="No doctors found"
+            text={
+              search || specialization !== "all" || status !== "all"
+                ? "Try another search or filter."
+                : "Doctors appear here after they sign up."
+            }
+          />
+        )
+      )}
+
+      {confirm && (
+        <Modal
+          title={confirm.doctor.isApproved === "approved" ? "Suspend this doctor?" : "Reject this doctor?"}
+          onClose={() => busyId === null && setConfirm(null)}
+          footer={
+            <>
+              <button
+                type="button"
+                disabled={busyId !== null}
+                onClick={() => setConfirm(null)}
+                className={`${smallBtn} border border-line bg-white text-headingColor hover:border-primaryColor`}
+              >
+                Go back
+              </button>
+              <button
+                type="button"
+                disabled={busyId !== null}
+                onClick={() => setApproval(confirm.doctor, confirm.status)}
+                className={`${smallBtn} bg-red-700 text-white hover:bg-red-800`}
+              >
+                {busyId !== null
+                  ? "Saving..."
+                  : confirm.doctor.isApproved === "approved"
+                  ? "Yes, suspend"
+                  : "Yes, reject"}
+              </button>
+            </>
+          }
+        >
+          <p className="text-[15px] leading-7 text-textColor">
+            <strong className="text-headingColor">{confirm.doctor.name}</strong> will no longer be
+            visible to patients or bookable.
+            {confirm.doctor.isApproved === "approved" &&
+              " Appointments that are already booked are not cancelled automatically."}{" "}
+            You can approve this doctor again later.
           </p>
-        </div>
-      ) : (
-        <h2 className="mt-10 text-center text-gray-800 text-2xl font-semibold">
-          No doctors found.
-        </h2>
+        </Modal>
       )}
     </div>
   );

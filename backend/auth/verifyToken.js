@@ -35,3 +35,18 @@ export const restrict = (roles) => (req, res, next) => {
   }
   next();
 };
+
+// Identifies the caller when a valid token is sent, but never rejects the request.
+export const optionalAuthenticate = (req, res, next) => {
+  const header = req.headers.authorization;
+  if (header?.startsWith("Bearer ")) {
+    try {
+      const decoded = verifyJwt(header.split(" ")[1]);
+      req.userId = String(decoded.id);
+      req.role = decoded.role;
+    } catch {
+      // invalid or expired token: continue as an anonymous visitor
+    }
+  }
+  next();
+};

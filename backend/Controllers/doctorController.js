@@ -1,6 +1,7 @@
 // Telemedecine\backend\Controllers\doctorController.js
 import bcrypt from "bcryptjs";
 import sgMail from "@sendgrid/mail";
+import mongoose from "mongoose";
 import Doctor from "../models/DoctorSchema.js";
 import Booking from "../models/BookingSchema.js";
 import MedicalNote from "../models/MedicalNoteSchema.js";
@@ -130,8 +131,19 @@ export const deleteDoctor = async (req, res) => {
 export const getSingleDoctor = async (req, res) => {
   const id = req.params.id;
   try {
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(404).json({ success: false, message: "Doctor not found" });
+    }
+
     const doctor = await Doctor.findById(id).populate("reviews").select("-password");
     if (!doctor) return res.status(404).json({ success: false, message: "Doctor not found" });
+
+    // Only approved doctors are public. Admins and the doctor themselves can see any profile.
+    const isOwner = req.userId && String(req.userId) === String(doctor._id);
+    if (doctor.isApproved !== "approved" && req.role !== "admin" && !isOwner) {
+      return res.status(404).json({ success: false, message: "Doctor not found" });
+    }
+
     res.status(200).json({ success: true, message: "Doctor found", data: doctor });
   } catch (err) {
     res.status(500).json({ success: false, message: "Server error" });

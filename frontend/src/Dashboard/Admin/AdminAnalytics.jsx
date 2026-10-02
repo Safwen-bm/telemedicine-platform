@@ -1,5 +1,3 @@
-import { useContext, useEffect, useState } from "react";
-import { authContext } from "../../context/AuthContext";
 import { Line } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -12,74 +10,51 @@ import {
   Legend,
   Filler,
 } from "chart.js";
+import useFetchData from "../../hooks/useFetchData";
+import { BASE_URL } from "../../config";
+import Loader from "../../components/Loader/Loading";
+import ErrorMsg from "../../components/Error/Error";
+import { PanelHeader, StatCard } from "../../components/ui/dashboard.jsx";
 
-// Register Chart.js components
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-  Filler
-);
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
+
+const PRIMARY = "#8F3D4F";
+const GRID = "#DED5D1";
+
+const STATUS_ROWS = [
+  { key: "pending", label: "Pending", bar: "bg-amber-400" },
+  { key: "approved", label: "Approved", bar: "bg-emerald-500" },
+  { key: "completed", label: "Completed", bar: "bg-primaryColor" },
+  { key: "cancelled", label: "Cancelled", bar: "bg-red-400" },
+];
+
+const monthLabel = (key) =>
+  new Date(`${key}-01T00:00:00`).toLocaleDateString("en-US", { month: "short", year: "2-digit" });
 
 const AdminAnalytics = () => {
-  const { token } = useContext(authContext);
-  const [analytics, setAnalytics] = useState({ totalDoctors: 0, totalPatients: 0, totalBookings: 0 });
-  const [bookingTrends, setBookingTrends] = useState({ labels: [], data: [] });
-  const [error, setError] = useState(null);
+  const { data, loading, error } = useFetchData(`${BASE_URL}/analytics/dashboard`);
+  const { data: trends, error: trendsError } = useFetchData(`${BASE_URL}/analytics/booking-trends`);
 
-  const fetchAnalytics = async () => {
-    try {
-      const res = await fetch("http://localhost:5000/api/v1/analytics/dashboard", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to fetch analytics");
-      if (data.success) setAnalytics(data.data);
-    } catch (err) {
-      setError(err.message);
-    }
-  };
+  const stats = data && !Array.isArray(data) ? data : null;
+  const hasTrends = trends && Array.isArray(trends.labels) && trends.labels.length > 0;
+  const totalInTrend = hasTrends ? trends.data.reduce((a, b) => a + b, 0) : 0;
 
-  const fetchBookingTrends = async () => {
-    try {
-      const res = await fetch("http://localhost:5000/api/v1/analytics/booking-trends", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to fetch booking trends");
-      if (data.success) {
-        // Filter out null labels and corresponding data
-        const filteredTrends = {
-          labels: data.data.labels.filter(label => label !== null),
-          data: data.data.data.filter((_, index) => data.data.labels[index] !== null),
-        };
-        setBookingTrends(filteredTrends);
-      }
-    } catch (err) {
-      setError(err.message);
-    }
-  };
+  if (!stats && loading) return <Loader />;
+  if (!stats) return <ErrorMsg errMessage={error || "Could not load analytics."} />;
 
-  useEffect(() => {
-    fetchAnalytics();
-    fetchBookingTrends();
-  }, []);
-
-  // Chart.js data configuration
   const chartData = {
-    labels: bookingTrends.labels,
+    labels: hasTrends ? trends.labels.map(monthLabel) : [],
     datasets: [
       {
         label: "Bookings",
-        data: bookingTrends.data,
-        borderColor: "#4B5EFC",
-        backgroundColor: "rgba(75, 94, 252, 0.2)",
+        data: hasTrends ? trends.data : [],
+        borderColor: PRIMARY,
+        backgroundColor: "rgba(143, 61, 79, 0.12)",
         borderWidth: 2,
         fill: true,
+        tension: 0.3,
+        pointRadius: 3,
+        pointBackgroundColor: PRIMARY,
       },
     ],
   };
@@ -88,44 +63,63 @@ const AdminAnalytics = () => {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { position: "top" },
+      legend: { display: false },
       tooltip: { mode: "index", intersect: false },
     },
     scales: {
-      x: { title: { display: true, text: "Month" } },
-      y: { title: { display: true, text: "Number of Bookings" }, beginAtZero: true },
+      x: { grid: { display: false } },
+      y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: GRID } },
     },
   };
 
   return (
-    <div className="p-4 md:p-8 bg-gradient-to-br from-gray-100 to-gray-200 min-h-screen">
-      <h2 className="text-4xl font-bold text-gray-900 mb-6 border-b-2 border-indigo-200 pb-3">
-        Admin Analytics Dashboard
-      </h2>
-      {error && <p className="text-red-600 mb-4 text-lg">Error: {error}</p>}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-lg shadow-lg border border-indigo-200">
-          <h3 className="text-xl font-semibold text-indigo-900">Total Doctors</h3>
-          <p className="text-3xl font-bold text-indigo-700 mt-2">{analytics.totalDoctors}</p>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-lg border border-indigo-200">
-          <h3 className="text-xl font-semibold text-indigo-900">Total Patients</h3>
-          <p className="text-3xl font-bold text-indigo-700 mt-2">{analytics.totalPatients}</p>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow-lg border border-indigo-200">
-          <h3 className="text-xl font-semibold text-indigo-900">Total Bookings</h3>
-          <p className="text-3xl font-bold text-indigo-700 mt-2">{analytics.totalBookings}</p>
-        </div>
+    <div>
+      <PanelHeader title="Analytics" description="Activity on the platform over the last 12 months." />
+
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+        <StatCard label="Doctors" value={stats.totalDoctors} hint={`${stats.approvedDoctors} approved`} />
+        <StatCard label="Patients" value={stats.totalPatients} />
+        <StatCard label="Bookings" value={stats.totalBookings} />
+        <StatCard label="Revenue" value={`$${stats.revenue}`} hint="Paid, excluding cancelled" />
       </div>
-      <div className="bg-white p-6 rounded-lg shadow-lg border border-indigo-200">
-        <h3 className="text-xl font-semibold text-indigo-900 mb-4">Booking Trends (Monthly)</h3>
-        {bookingTrends.labels.length > 0 ? (
-          <div style={{ height: "400px", width: "100%" }}>
-            <Line data={chartData} options={chartOptions} />
-          </div>
-        ) : (
-          <p className="text-gray-600">No booking trends data available.</p>
-        )}
+
+      <div className="mt-8 grid gap-6 xl:grid-cols-3">
+        <section className="rounded-[14px] border border-line bg-white p-5 xl:col-span-2">
+          <h3 className="font-heading text-[20px] font-semibold text-headingColor">
+            Appointments per month
+          </h3>
+          <p className="mt-1 text-[13px] text-textColor">By appointment date, cancelled ones excluded.</p>
+          {trendsError ? (
+            <p className="mt-6 text-textColor">{trendsError}</p>
+          ) : totalInTrend > 0 ? (
+            <div className="mt-6 h-[340px]">
+              <Line data={chartData} options={chartOptions} />
+            </div>
+          ) : (
+            <p className="mt-6 italic text-textColor">No appointments in this period yet.</p>
+          )}
+        </section>
+
+        <section className="rounded-[14px] border border-line bg-white p-5">
+          <h3 className="font-heading text-[20px] font-semibold text-headingColor">Bookings by status</h3>
+          <ul className="mt-5 space-y-4">
+            {STATUS_ROWS.map(({ key, label, bar }) => {
+              const count = stats.bookingsByStatus[key] || 0;
+              const pct = stats.totalBookings ? (count / stats.totalBookings) * 100 : 0;
+              return (
+                <li key={key}>
+                  <div className="flex items-center justify-between text-[14px]">
+                    <span className="font-semibold text-headingColor">{label}</span>
+                    <span className="text-textColor">{count}</span>
+                  </div>
+                  <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-paper">
+                    <div className={`h-full rounded-full ${bar}`} style={{ width: `${pct}%` }} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
       </div>
     </div>
   );

@@ -1,25 +1,27 @@
-const upload_preset = import.meta.env.VITE_UPLOAD_PRESET;
-const cloud_name = import.meta.env.VITE_CLOUD_NAME;
+const UPLOAD_PRESET = import.meta.env.VITE_UPLOAD_PRESET;
+const CLOUD_NAME = import.meta.env.VITE_CLOUD_NAME;
 
-const uploadImageToCloudinary = async file => {
+const uploadImageToCloudinary = async (file) => {
+  if (!UPLOAD_PRESET || !CLOUD_NAME) {
+    throw new Error("Image upload is not configured");
+  }
 
-    const uploadData = new FormData();
+  const uploadData = new FormData();
+  uploadData.append("file", file);
+  uploadData.append("upload_preset", UPLOAD_PRESET);
 
-    uploadData.append("file", file);
-    uploadData.append("upload_preset", upload_preset);
-    uploadData.append("cloud_name", cloud_name);
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
+    method: "POST",
+    body: uploadData,
+  });
 
-    const res = await fetch(
-        `https://api.cloudinary.com/v1_1/${cloud_name}/image/upload`, 
-    {
-        method: "post",
-        body: uploadData,
-    }
-);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data?.error?.message || "Image upload failed");
+  }
 
-    const data = await res.json();
-
-    return data;
-}
+  // Callers read `url`: make sure it is the https one.
+  return { ...data, url: data.secure_url || data.url };
+};
 
 export default uploadImageToCloudinary;

@@ -1,4 +1,5 @@
 // Telemedecine\backend\Controllers\bookingController.js
+import mongoose from "mongoose";
 import Stripe from "stripe";
 import sgMail from "@sendgrid/mail";
 import User from "../models/UserSchema.js";
@@ -23,6 +24,28 @@ const escapeHtml = (value = "") =>
  * success page (confirmCheckout) and from the webhook, so it must be safe to
  * run any number of times for the same session.
  */
+
+// Times already taken for this doctor, so the booking panel can grey them out.
+export const getAvailability = async (req, res) => {
+  try {
+    const { doctorId } = req.params;
+    if (!mongoose.isValidObjectId(doctorId)) {
+      return res.status(404).json({ success: false, message: "Doctor not found" });
+    }
+
+    const taken = await Booking.distinct("appointmentDate", {
+      doctor: doctorId,
+      status: { $ne: "cancelled" },
+      appointmentDate: { $gte: new Date() },
+    });
+
+    res.status(200).json({ success: true, data: taken.map((d) => d.toISOString()) });
+  } catch (err) {
+    console.error("Availability error:", err.message);
+    res.status(500).json({ success: false, message: "Could not load availability" });
+  }
+};
+
 const fulfillCheckoutSession = async (session) => {
   if (session.payment_status !== "paid") return { status: "unpaid" };
 

@@ -1,5 +1,6 @@
 // Telemedecine\backend\Controllers\userController.js
 import bcrypt from "bcryptjs";
+import Stripe from "stripe";
 import User from "../models/UserSchema.js";
 import Booking from "../models/BookingSchema.js";
 import MedicalNote from "../models/MedicalNoteSchema.js";
@@ -91,10 +92,39 @@ export const deleteUser = async (req, res) => {
       return res.status(403).json({ success: false, message: "Unauthorized access" });
     }
 
-    const user = await User.findByIdAndDelete(id);
+    const user = await User.findById(id).select("_id");
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
+
+    // Paid appointments that have not happened yet are refunded before the account goes away.
+    const refundable = (
+      await Booking.find({ user: id, status: { $in: ["pending", "approved"] }, isPaid: true })
+    ).filter((b) => b.paymentIntentId);
+
+    if (refundable.length) {
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+      try {
+        for (const booking of refundable) {
+          try {
+            await stripe.refunds.create(
+              { payment_intent: booking.paymentIntentId },
+              { idempotencyKey: `refund-${booking._id}` }
+            );
+          } catch (err) {
+            if (err.code !== "charge_already_refunded") throw err;
+          }
+        }
+      } catch (err) {
+        console.error("Refund failed during account deletion:", err.message);
+        return res.status(502).json({
+          success: false,
+          message: "A refund could not be processed, so the account was not deleted. Please try again.",
+        });
+      }
+    }
+
+    await User.findByIdAndDelete(id);
 
     // Reviews written by this patient, and the doctors they affect.
     const reviews = await Review.find({ user: id }).select("doctor").lean();

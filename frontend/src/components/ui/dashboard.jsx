@@ -34,14 +34,24 @@ const STATUS_STYLES = {
   cancelled: "border-red-200 bg-red-50 text-red-700",
 };
 
-export const StatusBadge = ({ status = "" }) => (
+export const StatusBadge = ({ status = "", label }) => (
   <span
     className={`inline-flex items-center rounded-[6px] border px-2.5 py-1 text-[12px] font-semibold capitalize ${
       STATUS_STYLES[status] || "border-line bg-paper text-textColor"
     }`}
   >
-    {status || "unknown"}
+    {label || status || "unknown"}
   </span>
+);
+
+export const StatCard = ({ label, value, hint }) => (
+  <div className="rounded-[14px] border border-line bg-white p-5">
+    <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-textColor">{label}</p>
+    <p className="mt-2 font-heading text-[34px] font-semibold leading-none text-headingColor">
+      {value}
+    </p>
+    {hint && <p className="mt-2 text-[13px] text-textColor">{hint}</p>}
+  </div>
 );
 
 export const PanelHeader = ({ title, description, action }) => (

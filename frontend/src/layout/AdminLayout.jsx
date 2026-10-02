@@ -1,78 +1,77 @@
-import { useContext, useEffect } from "react";
+import { useContext } from "react";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { LayoutDashboard, Users, Stethoscope, CalendarCheck2, TrendingUp } from "lucide-react";
 import { authContext } from "../context/AuthContext";
-import { useNavigate, Link, Outlet } from "react-router-dom";
 import AdminHeader from "../Dashboard/Admin/AdminHeader";
+import useFetchData from "../hooks/useFetchData";
+import { BASE_URL } from "../config";
+
+const NAV = [
+  { to: "/admin", label: "Overview", icon: LayoutDashboard, end: true },
+  { to: "/admin/patients", label: "Patients", icon: Users },
+  { to: "/admin/doctors", label: "Doctors", icon: Stethoscope, badge: true },
+  { to: "/admin/bookings", label: "Bookings", icon: CalendarCheck2 },
+  { to: "/admin/analytics", label: "Analytics", icon: TrendingUp },
+];
 
 const AdminLayout = () => {
-  const { dispatch, token } = useContext(authContext);
+  const { dispatch, user } = useContext(authContext);
   const navigate = useNavigate();
+
+  const { data: pending, refetch: refreshPending } = useFetchData(`${BASE_URL}/doctors/pending`);
+  const pendingCount = Array.isArray(pending) ? pending.length : 0;
 
   const handleLogout = () => {
     dispatch({ type: "LOGOUT" });
     navigate("/admin/login");
   };
 
-  useEffect(() => {
-    console.log("Token in AdminLayout:", token);
-  }, [token]);
-
   return (
-    <div className="flex flex-col min-h-screen">
-      <AdminHeader />
-      <div className="flex flex-1">
-        {/* Sidebar */}
-        <div className="w-64 bg-white text-gray-800 p-4 shadow-lg">
-          <h2 className="text-2xl font-bold mb-6 text-indigo-900">Admin Panel</h2>
-          <nav>
-            <ul>
-              <li className="mb-4">
-                <Link
-                  to="/admin/patients"
-                  className="block p-2 rounded-md transition duration-200 hover:bg-indigo-600 hover:text-white"
-                >
-                  Patients
-                </Link>
-              </li>
-              <li className="mb-4">
-                <Link
-                  to="/admin/doctors"
-                  className="block p-2 rounded-md transition duration-200 hover:bg-indigo-600 hover:text-white"
-                >
-                  Doctors
-                </Link>
-              </li>
-              <li className="mb-4">
-                <Link
-                  to="/admin/bookings"
-                  className="block p-2 rounded-md transition duration-200 hover:bg-indigo-600 hover:text-white"
-                >
-                  Bookings
-                </Link>
-              </li>
-              <li className="mb-4">
-                <Link
-                  to="/admin/analytics"
-                  className="block p-2 rounded-md transition duration-200 hover:bg-indigo-600 hover:text-white"
-                >
-                  Analytics
-                </Link>
-              </li>
-              <li>
-                <button
-                  onClick={handleLogout}
-                  className="w-full text-left text-white p-2 bg-red-500 hover:bg-red-600 rounded-md transition duration-200"
-                >
-                  Logout
-                </button>
-              </li>
-            </ul>
-          </nav>
-        </div>
+    <div className="min-h-screen bg-paper">
+      <AdminHeader name={user?.name} onLogout={handleLogout} />
 
-        {/* Content Area */}
-        <div className="flex-1 p-6 bg-gray-100">
-          <Outlet />
-        </div>
+      <div className="flex flex-col lg:flex-row">
+        <aside className="border-b border-line bg-white lg:min-h-[calc(100vh-4rem)] lg:w-64 lg:shrink-0 lg:border-b-0 lg:border-r">
+          <nav
+            aria-label="Admin sections"
+            className="flex gap-1 overflow-x-auto p-3 lg:sticky lg:top-16 lg:flex-col lg:p-4"
+          >
+            {NAV.map(({ to, label, icon: Icon, end, badge }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={end}
+                className={({ isActive }) =>
+                  `flex shrink-0 items-center gap-3 rounded-[8px] px-4 py-3 text-[15px] font-semibold transition-colors ${
+                    isActive
+                      ? "bg-primaryColor text-white"
+                      : "text-textColor hover:bg-paper hover:text-headingColor"
+                  }`
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    <Icon className="h-5 w-5" />
+                    {label}
+                    {badge && pendingCount > 0 && (
+                      <span
+                        className={`ml-auto rounded-full px-2 py-0.5 text-[12px] ${
+                          isActive ? "bg-white/20 text-white" : "bg-coral text-white"
+                        }`}
+                      >
+                        {pendingCount}
+                      </span>
+                    )}
+                  </>
+                )}
+              </NavLink>
+            ))}
+          </nav>
+        </aside>
+
+        <main className="min-w-0 flex-1 p-5 lg:p-8">
+          <Outlet context={{ refreshPending }} />
+        </main>
       </div>
     </div>
   );

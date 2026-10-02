@@ -8,6 +8,7 @@ import {
   sendReminder,
   cancelBooking,
   completeBooking,
+  getAvailability
 } from "../Controllers/bookingController.js";
 
 const router = express.Router();
@@ -19,6 +20,7 @@ router.post(
   getCheckoutSession,
 );
 router.post("/confirm", authenticate, restrict(["patient"]), confirmCheckout);
+router.get("/availability/:doctorId", authenticate, restrict(["patient"]), getAvailability);
 router.get("/", authenticate, restrict(["admin"]), getAllBookings);
 router.get(
   "/:id",

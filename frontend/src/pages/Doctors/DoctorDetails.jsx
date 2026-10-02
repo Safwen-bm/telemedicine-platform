@@ -172,7 +172,7 @@ const DoctorDetails = () => {
             <aside className="lg:col-span-4">
               <div className="lg:sticky lg:top-24">
                 {bookable ? (
-                  <SidePanel doctorId={doctor._id} ticketPrice={ticketPrice} />
+                  <SidePanel doctorId={doctor._id} doctorName={name} ticketPrice={ticketPrice} />
                 ) : (
                   <div className="rounded-[14px] border border-line bg-white p-6 text-[15px] leading-7 text-textColor">
                     This doctor is not accepting bookings at the moment.

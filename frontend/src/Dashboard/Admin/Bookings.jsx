@@ -1,164 +1,199 @@
-import { useContext, useEffect, useState } from "react";
-import { authContext } from "../../context/AuthContext";
+import { useMemo, useState } from "react";
+import { CalendarDays, Search } from "lucide-react";
+import { toast } from "react-toastify";
+import useFetchData from "../../hooks/useFetchData";
+import { useAuth } from "../../context/AuthContext";
+import { BASE_URL } from "../../config";
+import Loader from "../../components/Loader/Loading";
+import ErrorMsg from "../../components/Error/Error";
+import {
+  PanelHeader,
+  EmptyState,
+  StatusBadge,
+  Modal,
+  inputClass,
+  fmtDate,
+  fmtTime,
+} from "../../components/ui/dashboard.jsx";
 
 const Bookings = () => {
-  const { token } = useContext(authContext);
-  const [bookings, setBookings] = useState([]);
-  const [filteredBookings, setFilteredBookings] = useState([]);
-  const [error, setError] = useState(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const { token } = useAuth();
+  const { data, loading, error, refetch } = useFetchData(`${BASE_URL}/bookings`);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("all");
+  const [toCancel, setToCancel] = useState(null);
+  const [cancelling, setCancelling] = useState(false);
 
-  const fetchBookings = async () => {
-    try {
-      console.log("Fetching bookings with token:", token);
-      const res = await fetch("http://localhost:5000/api/v1/bookings", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to fetch bookings");
-      if (data.success) {
-        setBookings(data.data);
-        setFilteredBookings(data.data);
-      }
-    } catch (err) {
-      setError(err.message);
-    }
-  };
+  const total = Array.isArray(data) ? data.length : 0;
 
-  const cancelBooking = async (bookingId) => {
+  const bookings = useMemo(() => {
+    const list = Array.isArray(data) ? data : [];
+    const q = search.trim().toLowerCase();
+    const time = (b) => new Date(b.appointmentDate).getTime() || 0;
+    return list
+      .filter((b) => status === "all" || b.status === status)
+      .filter(
+        (b) =>
+          !q ||
+          b.user?.name?.toLowerCase().includes(q) ||
+          b.doctor?.name?.toLowerCase().includes(q)
+      )
+      .sort((a, b) => time(b) - time(a));
+  }, [data, search, status]);
+
+  const confirmCancel = async () => {
+    setCancelling(true);
     try {
-      const res = await fetch(`http://localhost:5000/api/v1/bookings/cancel/${bookingId}`, {
+      const res = await fetch(`${BASE_URL}/bookings/cancel/${toCancel._id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to cancel booking");
-      if (data.success) {
-        setBookings((prev) =>
-          prev.map((b) => (b._id === bookingId ? { ...b, status: "cancelled" } : b))
-        );
-        setFilteredBookings((prev) =>
-          prev.map((b) => (b._id === bookingId ? { ...b, status: "cancelled" } : b))
-        );
-      }
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(result.message || "Failed to cancel booking");
+
+      toast.success(result.message || "Booking cancelled");
+      setToCancel(null);
+      refetch();
     } catch (err) {
-      setError(err.message);
+      toast.error(err.message);
+    } finally {
+      setCancelling(false);
     }
   };
 
-  useEffect(() => {
-    fetchBookings();
-  }, []);
-
-  useEffect(() => {
-    let filtered = bookings;
-    if (searchTerm) {
-      filtered = filtered.filter(
-        (b) =>
-          b.user?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          b.doctor?.name?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-    if (statusFilter !== "all") {
-      filtered = filtered.filter((b) => b.status === statusFilter);
-    }
-    setFilteredBookings(filtered);
-  }, [searchTerm, statusFilter, bookings]);
-
   return (
-    <div className="p-4 md:p-8 bg-gradient-to-br from-gray-100 to-gray-200 min-h-screen">
-      <h2 className="text-4xl font-bold text-gray-900 mb-6 border-b-2 border-indigo-200 pb-3">
-        Bookings Management
-      </h2>
-      {error && <p className="text-red-600 mb-4 text-lg">Error: {error}</p>}
-      <div className="mb-6 flex flex-col md:flex-row gap-4">
-        <input
-          type="text"
-          placeholder="Search by patient or doctor name..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-200 w-full md:w-1/2"
-        />
+    <div>
+      <PanelHeader
+        title="Bookings"
+        description={total ? `${total} ${total === 1 ? "booking" : "bookings"} in total` : undefined}
+      />
+
+      <div className="mb-6 flex flex-col gap-4 md:flex-row">
+        <div className="relative md:w-1/2">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-textColor" />
+          <input
+            type="search"
+            placeholder="Search by patient or doctor"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className={`${inputClass} pl-12`}
+            aria-label="Search bookings"
+          />
+        </div>
         <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition duration-200 w-full md:w-1/4"
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          className={`${inputClass} md:w-56`}
+          aria-label="Filter by status"
         >
-          <option value="all">All Statuses</option>
+          <option value="all">All statuses</option>
           <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
           <option value="completed">Completed</option>
           <option value="cancelled">Cancelled</option>
         </select>
       </div>
-      {filteredBookings.length > 0 ? (
-        <div className="space-y-6">
-          {filteredBookings.map((booking) => (
-            <div
-              key={booking._id}
-              className="bg-white border border-indigo-200 rounded-2xl shadow-lg p-4 md:p-6 flex flex-col md:flex-row md:items-center justify-between hover:shadow-xl hover:bg-gray-50 transition-all duration-300"
-            >
-              <div className="flex items-start gap-4">
-                <div className="flex-1 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-xl font-bold text-indigo-900">
-                      {booking.user?.name || "N/A"}
-                    </h3>
-                    <span
-                      className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        booking.status === "pending"
-                          ? "bg-yellow-100 text-yellow-700"
-                          : booking.status === "completed"
-                          ? "bg-green-100 text-green-700"
-                          : "bg-red-100 text-red-700"
-                      }`}
-                    >
-                      {booking.status ? booking.status.charAt(0).toUpperCase() + booking.status.slice(1) : "N/A"}
+
+      {loading && total === 0 && <Loader />}
+      {error && total === 0 && <ErrorMsg errMessage={error} />}
+
+      {!(loading && total === 0) && !(error && total === 0) && (
+        bookings.length > 0 ? (
+          <ul className="space-y-3">
+            {bookings.map((b) => {
+              const date = new Date(b.appointmentDate);
+              const valid = !Number.isNaN(date.getTime());
+              const cancellable = ["pending", "approved"].includes(b.status);
+              return (
+                <li
+                  key={b._id}
+                  className="flex flex-col gap-4 rounded-[14px] border border-line bg-white p-4 md:flex-row md:items-center"
+                >
+                  <div className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-[10px] bg-mint text-primaryColor">
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.12em]">
+                      {valid ? date.toLocaleString("en-US", { month: "short" }) : "N/A"}
+                    </span>
+                    <span className="font-heading text-[26px] font-semibold leading-none">
+                      {valid ? date.getDate() : "-"}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-600 flex items-center gap-2">
-                    <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a2 2 0 00-2-2h-3m-2 4h-5a2 2 0 01-2-2v-2m7-6a4 4 0 11-8 0 4 4 0 018 0z" />
-                    </svg>
-                    <span><strong>Doctor:</strong> Dr. {booking.doctor?.name || "N/A"}, {booking.doctor?.specialization || "N/A"}</span>
-                  </p>
-                  <p className="text-sm text-gray-600 flex items-center gap-2">
-                    <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    <span><strong>Date:</strong> {new Date(booking.appointmentDate).toLocaleDateString()}</span>
-                  </p>
-                  <p className="text-sm text-gray-600 flex items-center gap-2">
-                    <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span><strong>Time:</strong> {new Date(booking.appointmentDate).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })}</span>
-                  </p>
-                </div>
-              </div>
-              <div className="mt-4 md:mt-0 flex flex-col items-start md:items-end gap-2">
-                {booking.status === "pending" && (
-                  <button
-                    onClick={() => cancelBooking(booking._id)}
-                    className="bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition duration-200 transform hover:scale-105 text-sm"
-                  >
-                    Cancel Booking
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-          <p className="text-xs text-gray-400 mt-2">
-            Last Updated:{" "}
-            {new Date(
-              Math.max(...bookings.map((b) => new Date(b.updatedAt)))
-            ).toLocaleDateString()}
+
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-heading text-[18px] font-semibold text-headingColor">
+                      {b.user?.name || "Deleted patient"}
+                    </p>
+                    <p className="truncate text-[14px] text-textColor">
+                      with Dr. {b.doctor?.name || "Unknown"}
+                      {b.doctor?.specialization && (
+                        <span className="capitalize">, {b.doctor.specialization}</span>
+                      )}
+                    </p>
+                    <p className="text-[13px] text-textColor">
+                      {fmtDate(b.appointmentDate)}, {fmtTime(b.appointmentDate)}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col items-start gap-2 md:items-end">
+                    <StatusBadge status={b.status} />
+                    <p className="text-[13px] text-textColor">
+                      ${b.ticketPrice} {b.isPaid ? "paid" : "unpaid"}
+                    </p>
+                    {cancellable && (
+                      <button
+                        type="button"
+                        onClick={() => setToCancel(b)}
+                        className="rounded-[8px] border border-red-200 bg-white px-4 py-2 text-[14px] font-semibold text-red-700 transition-colors hover:bg-red-50"
+                      >
+                        Cancel booking
+                      </button>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <EmptyState
+            icon={CalendarDays}
+            title="No bookings found"
+            text={search || status !== "all" ? "Try another search or filter." : "Bookings appear here once patients pay."}
+          />
+        )
+      )}
+
+      {toCancel && (
+        <Modal
+          title="Cancel this booking?"
+          onClose={() => !cancelling && setToCancel(null)}
+          footer={
+            <>
+              <button
+                type="button"
+                disabled={cancelling}
+                onClick={() => setToCancel(null)}
+                className="rounded-[8px] border border-line bg-white px-4 py-2 text-[14px] font-semibold text-headingColor hover:border-primaryColor"
+              >
+                Keep booking
+              </button>
+              <button
+                type="button"
+                disabled={cancelling}
+                onClick={confirmCancel}
+                className="rounded-[8px] bg-red-700 px-4 py-2 text-[14px] font-semibold text-white hover:bg-red-800 disabled:opacity-50"
+              >
+                {cancelling ? "Cancelling..." : "Yes, cancel"}
+              </button>
+            </>
+          }
+        >
+          <p className="text-[15px] leading-7 text-textColor">
+            The appointment of{" "}
+            <strong className="text-headingColor">{toCancel.user?.name || "this patient"}</strong>{" "}
+            with Dr. {toCancel.doctor?.name || "Unknown"} on {fmtDate(toCancel.appointmentDate)} at{" "}
+            {fmtTime(toCancel.appointmentDate)} will be cancelled, and the patient refunded
+            automatically.
           </p>
-        </div>
-      ) : (
-        <h2 className="mt-10 text-center text-gray-800 text-2xl font-semibold">
-          No bookings found.
-        </h2>
+        </Modal>
       )}
     </div>
   );

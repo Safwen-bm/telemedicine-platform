@@ -1,5 +1,5 @@
 import { useEffect, useState, useContext } from "react";
-import { NavLink, Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { BiMenu, BiX } from "react-icons/bi";
 import { FaTachometerAlt } from "react-icons/fa";
 import { BsArrowUpRight } from "react-icons/bs";
@@ -7,17 +7,29 @@ import { BsArrowUpRight } from "react-icons/bs";
 import { authContext } from "../../context/AuthContext";
 
 const navLinks = [
-  { path: "/", display: "Home" },
+  { path: "/", display: "Home", match: (p) => p === "/" || p === "/home" },
   { path: "/services", display: "Services" },
-  { path: "/doctors", display: "Find a doctor" },
+  {
+    path: "/doctors",
+    display: "Find a doctor",
+    // The list and a single doctor page only. Not /doctors/profile/me
+    // (dashboard) or /doctors/medical-folder/:id.
+    match: (p) => p === "/doctors" || /^\/doctors\/[^/]+\/?$/.test(p),
+  },
   { path: "/contact", display: "Contact" },
 ];
+
+const isLinkActive = (link, pathname) =>
+  link.match
+    ? link.match(pathname)
+    : pathname === link.path || pathname.startsWith(`${link.path}/`);
 
 const Header = () => {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
 
   const { user, role, token } = useContext(authContext);
+  const { pathname } = useLocation();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 80);
@@ -29,6 +41,11 @@ const Header = () => {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // Close the mobile menu whenever the page changes.
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
+
   const profilePath =
     role === "doctor" ? "/doctors/profile/me" : "/users/profile/me";
 
@@ -37,11 +54,7 @@ const Header = () => {
       <div className="container">
         <div className="flex items-center justify-between leading-normal">
           {/* Logo */}
-          <Link
-            to="/"
-            className="flex items-center gap-2"
-            onClick={() => setOpen(false)}
-          >
+          <Link to="/" className="flex items-center gap-2">
             <span className="flex h-8 w-8 items-center justify-center rounded-[8px] bg-primaryColor">
               <svg
                 viewBox="0 0 24 24"
@@ -71,24 +84,24 @@ const Header = () => {
             } absolute left-0 top-full w-full border-b border-line bg-paper px-5 py-5 shadow-md md:static md:block md:w-auto md:border-0 md:bg-transparent md:p-0 md:shadow-none`}
           >
             <ul className="flex flex-col gap-5 md:flex-row md:items-center md:gap-10">
-              {navLinks.map((link) => (
-                <li key={link.path}>
-                  <NavLink
-                    to={link.path}
-                    end={link.path === "/"}
-                    onClick={() => setOpen(false)}
-                    className={({ isActive }) =>
-                      `relative inline-block py-1 text-[15px] font-semibold leading-none transition-colors ${
-                        isActive
+              {navLinks.map((link) => {
+                const active = isLinkActive(link, pathname);
+                return (
+                  <li key={link.path}>
+                    <Link
+                      to={link.path}
+                      aria-current={active ? "page" : undefined}
+                      className={`relative inline-block py-1 text-[15px] font-semibold leading-none transition-colors ${
+                        active
                           ? "text-primaryColor after:absolute after:-bottom-1 after:left-0 after:h-[2px] after:w-full after:bg-coral"
                           : "text-textColor hover:text-primaryColor"
-                      }`
-                    }
-                  >
-                    {link.display}
-                  </NavLink>
-                </li>
-              ))}
+                      }`}
+                    >
+                      {link.display}
+                    </Link>
+                  </li>
+                );
+              })}
             </ul>
           </nav>
 
@@ -147,6 +160,7 @@ const Header = () => {
               type="button"
               className="md:hidden"
               aria-label="Toggle menu"
+              aria-expanded={open}
               onClick={() => setOpen((o) => !o)}
             >
               {open ? (
